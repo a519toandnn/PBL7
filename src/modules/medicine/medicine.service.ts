@@ -190,23 +190,18 @@ export class MedicineService {
 
     const query = this.medicineRepository
       .createQueryBuilder('m')
-      .leftJoinAndSelect(
-        'm.prices',
-        'p',
-        'p.is_sell_default = :default',
-        { default: true },
-      )
-      .leftJoinAndSelect('p.measure_unit', 'mu')
-      .select([
-        'm.id',
-        'm.slug',
-        'm.name',
-        'm.image_url',
-        'm.product_type',
-        'm.created_at',
-        'p.price',
-        'mu.name',
-      ])
+      .leftJoin('m.prices', 'p', 'p.is_sell_default = :default', {
+        default: true,
+      })
+      .leftJoin('p.measure_unit', 'mu')
+      .select('m.id', 'id')
+      .addSelect('m.slug', 'slug')
+      .addSelect('m.name', 'name')
+      .addSelect('m.image_url', 'image_url')
+      .addSelect('m.product_type', 'product_type')
+      .addSelect('m.created_at', 'created_at')
+      .addSelect('p.price', 'price')
+      .addSelect('mu.name', 'measure_unit_name')
       .where('m.is_active = :active', { active: true })
       .andWhere('m.deleted_at IS NULL')
       .addOrderBy('m.created_at', 'ASC')
@@ -214,16 +209,16 @@ export class MedicineService {
       .skip(skip)
       .take(limit);
 
-    const [medicines, total] = await query.getManyAndCount();
+    const rows = await query.getRawMany();
 
-    return medicines.map((m: any) => ({
-      id: m.id,
-      slug: m.slug,
-      name: m.name,
-      image_url: m.image_url,
-      product_type: m.product_type,
-      price: m.prices?.[0]?.price || 0,
-      measure_unit_name: m.prices?.[0]?.measure_unit?.name || '',
+    return rows.map((row: any) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      image_url: row.image_url,
+      product_type: row.product_type,
+      price: row.price ? Number(row.price) : 0,
+      measure_unit_name: row.measure_unit_name ?? '',
       is_sell_default: true,
     } as MedicineListItemDto));
   }
@@ -243,50 +238,28 @@ export class MedicineService {
 
     const query = this.medicineRepository
       .createQueryBuilder('m')
-      .select([
-        'm.id',
-        'm.slug',
-        'm.name',
-        'm.image_url',
-        'm.product_type',
-      ])
-      // Default price subquery
-      .addSelect(
-        (subquery) =>
-          subquery
-            .select('p.price')
-            .from(MedicinePrice, 'p')
-            .where('p.product_id = m.id')
-            .andWhere('p.is_sell_default = :default', { default: true })
-            .limit(1),
-        'm_default_price',
-      )
-      // Default measure unit name subquery
-      .addSelect(
-        (subquery) =>
-          subquery
-            .select('mu.name')
-            .from(MedicinePrice, 'p')
-            .innerJoin(MeasureUnit, 'mu', 'mu.id = p.measure_unit_id')
-            .where('p.product_id = m.id')
-            .andWhere('p.is_sell_default = :default', { default: true })
-            .limit(1),
-        'm_default_measure_name',
-      )
-      // Match type calculation
+      .leftJoin('m.prices', 'p', 'p.is_sell_default = :default', {
+        default: true,
+      })
+      .leftJoin('p.measure_unit', 'mu')
+      .select('m.id', 'id')
+      .addSelect('m.slug', 'slug')
+      .addSelect('m.name', 'name')
+      .addSelect('m.image_url', 'image_url')
+      .addSelect('m.product_type', 'product_type')
+      .addSelect('p.price', 'price')
+      .addSelect('mu.name', 'measure_unit_name')
       .addSelect(
         `CASE 
           WHEN m.slug = :exactSlug THEN '${SearchMatchType.EXACT}'
           WHEN m.slug LIKE :slugPattern THEN '${SearchMatchType.PREFIX}'
           ELSE '${SearchMatchType.PARTIAL}'
         END`,
-        'm_match_type',
+        'match_type',
       )
-      // Slug-based search (not name!)
       .where('m.slug LIKE :slugPattern', { slugPattern })
       .andWhere('m.is_active = :active', { active: true })
       .andWhere('m.deleted_at IS NULL')
-      // Sort: Exact matches first, then by creation date
       .orderBy(
         `CASE 
           WHEN m.slug = :exactSlug THEN 0
@@ -302,18 +275,18 @@ export class MedicineService {
       .setParameter('active', true)
       .setParameter('default', true);
 
-    const [medicines, total] = await query.getManyAndCount();
+    const rows = await query.getRawMany();
 
-    return medicines.map((m: any) => ({
-      id: m.id,
-      slug: m.slug,
-      name: m.name,
-      image_url: m.image_url,
-      product_type: m.product_type,
-      price: m.m_default_price || 0,
-      measure_unit_name: m.m_default_measure_name || '',
+    return rows.map((row: any) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      image_url: row.image_url,
+      product_type: row.product_type,
+      price: row.price ? Number(row.price) : 0,
+      measure_unit_name: row.measure_unit_name ?? '',
       is_sell_default: true,
-      match_type: m.m_match_type as SearchMatchType,
+      match_type: row.match_type as SearchMatchType,
     } as MedicineSearchItemDto));
   }
 

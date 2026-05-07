@@ -1,12 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Order, OrderStatus } from './entities/order.entity';
 import { User } from '../user/entities/user.entity';
 import { OrderItem } from '../orderitem/entities/orderitem.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { Medicine } from '../medicine/entities/medicine.entity';
-import { MeasureUnit } from '../medicine/entities/measure-unit.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
@@ -23,8 +22,6 @@ export class OrderService {
     private readonly cartRepository: Repository<Cart>,
     @InjectRepository(Medicine)
     private readonly medicineRepository: Repository<Medicine>,
-    @InjectRepository(MeasureUnit)
-    private readonly measureUnitRepository: Repository<MeasureUnit>,
   ) {}
 
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -45,23 +42,25 @@ export class OrderService {
 
     let totalAmount = 0;
     const orderItems: OrderItem[] = [];
+    const uniqueProductIds = Array.from(
+      new Set(createOrderDto.items.map((item) => item.product_id)),
+    );
+
+    const products = await this.medicineRepository.find({
+      where: { id: In(uniqueProductIds) },
+      relations: ['prices', 'prices.measure_unit'],
+    });
+
+    if (products.length !== uniqueProductIds.length) {
+      const foundIds = new Set(products.map((product) => product.id));
+      const missing = uniqueProductIds.filter((id) => !foundIds.has(id));
+      throw new BadRequestException(`Product not found: ${missing.join(', ')}`);
+    }
+
+    const productMap = new Map(products.map((product) => [product.id, product]));
 
     for (const item of createOrderDto.items) {
-      const product = await this.medicineRepository.findOne({
-        where: { id: item.product_id },
-        relations: ['prices', 'prices.measure_unit'],
-      });
-      if (!product) {
-        throw new BadRequestException(`Product ${item.product_id} not found`);
-      }
-
-      const unit = await this.measureUnitRepository.findOne({
-        where: { id: item.measure_unit_id },
-      });
-      if (!unit) {
-        throw new BadRequestException(`Measure unit ${item.measure_unit_id} not found`);
-      }
-
+      const product = productMap.get(item.product_id) as Medicine;
       const priceRow = product.prices.find(
         (price) => price.measure_unit.id === item.measure_unit_id,
       );
@@ -78,7 +77,7 @@ export class OrderService {
         order: savedOrder,
         product,
         product_name_snapshot: product.name,
-        measure_unit_name_snapshot: unit.name,
+        measure_unit_name_snapshot: priceRow.measure_unit.name,
         quantity: item.quantity,
         unit_price: Number(priceRow.price),
         line_total: lineTotal,

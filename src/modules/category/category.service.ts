@@ -76,40 +76,6 @@ export class CategoryService {
     await this.categoryRepository.remove(category);
   }
 
-  // ============================================================
-  // OPTIMIZED QUERIES - Hierarchical category browsing
-  // ============================================================
-
-  /**
-   * Get root categories only (level = 1)
-   * Used for category navigation starting point
-   */
-  async findRootCategories(): Promise<Category[]> {
-    return this.categoryRepository.find({
-      where: { level: 1, is_active: true },
-      order: { name: 'ASC' },
-    });
-  }
-
-  /**
-   * Get children categories by parent slug
-   * Used for hierarchical navigation
-   */
-  async findChildrenByParentSlug(parentSlug: string): Promise<Category[]> {
-    const parent = await this.categoryRepository.findOne({
-      where: { slug: parentSlug, is_active: true },
-    });
-
-    if (!parent) {
-      throw new NotFoundException(`Parent category with slug "${parentSlug}" not found`);
-    }
-
-    return this.categoryRepository.find({
-      where: { parent: { id: parent.id }, is_active: true },
-      order: { name: 'ASC' },
-    });
-  }
-
   /**
    * Get category by ID (for admin detail/update)
    */
@@ -243,35 +209,6 @@ export class CategoryService {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    };
-  }
-
-  /**
-   * Get category info with product count
-   * Returns basic category details for metadata purposes
-   */
-  async getCategoryInfo(slug: string): Promise<{
-    id: number;
-    name: string;
-    slug: string;
-    level: number;
-    product_count: number;
-  }> {
-    const category = await this.categoryRepository.findOne({
-      where: { slug, is_active: true },
-      relations: ['product_links'],
-    });
-
-    if (!category) {
-      throw new NotFoundException(`Category with slug "${slug}" not found`);
-    }
-
-    return {
-      id: category.id,
-      name: category.name,
-      slug: category.slug,
-      level: category.level,
-      product_count: (category.product_links || []).length,
     };
   }
 }

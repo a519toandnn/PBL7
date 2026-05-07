@@ -5,11 +5,10 @@ import { PaymentController } from './payment.controller';
 import { Payment } from './entities/payment.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
 import { Order } from '../order/entities/order.entity';
-import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cartitem/entities/cartitem.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, PaymentMethod, Order, Cart, CartItem])],
+  imports: [TypeOrmModule.forFeature([Payment, PaymentMethod, Order, CartItem])],
   controllers: [PaymentController],
   providers: [PaymentService],
   exports: [PaymentService],

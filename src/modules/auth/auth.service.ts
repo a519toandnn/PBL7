@@ -96,8 +96,4 @@ export class AuthService {
       },
     };
   }
-
-  validateToken(payload: IJwtPayload): IJwtPayload {
-    return payload;
-  }
 }

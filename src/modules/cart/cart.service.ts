@@ -5,7 +5,6 @@ import { Cart } from './entities/cart.entity';
 import { User } from '../user/entities/user.entity';
 import { Medicine } from '../medicine/entities/medicine.entity';
 import { CartItem } from '../cartitem/entities/cartitem.entity';
-import { MeasureUnit } from '../medicine/entities/measure-unit.entity';
 import { CreateCartDto } from './dto/create-cart.dto';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { AddToCartDto } from './dto/add-to-cart.dto';
@@ -21,17 +20,23 @@ export class CartService {
     private readonly medicineRepository: Repository<Medicine>,
     @InjectRepository(CartItem)
     private readonly cartItemRepository: Repository<CartItem>,
-    @InjectRepository(MeasureUnit)
-    private readonly measureUnitRepository: Repository<MeasureUnit>,
   ) {}
 
-  async create(createCartDto: CreateCartDto): Promise<Cart> {
+  /**
+   * Private helper: Validate user existence
+   */
+  private async validateUserExists(userId: number): Promise<User> {
     const user = await this.userRepository.findOne({
-      where: { id: createCartDto.user_id },
+      where: { id: userId },
     });
     if (!user) {
       throw new BadRequestException('User not found');
     }
+    return user;
+  }
+
+  async create(createCartDto: CreateCartDto): Promise<Cart> {
+    const user = await this.validateUserExists(createCartDto.user_id);
     const cart = this.cartRepository.create({ user });
     return this.cartRepository.save(cart);
   }
@@ -70,12 +75,7 @@ export class CartService {
    * Get or create cart for a user
    */
   async getOrCreateCartByUserId(userId: number): Promise<Cart> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
+    const user = await this.validateUserExists(userId);
 
     let cart = await this.cartRepository.findOne({
       where: { user: { id: userId } },
@@ -108,15 +108,8 @@ export class CartService {
       throw new BadRequestException('Product not found');
     }
 
-    const measureUnit = await this.measureUnitRepository.findOne({
-      where: { id: addToCartDto.measure_unit_id },
-    });
-    if (!measureUnit) {
-      throw new BadRequestException('Measure unit not found');
-    }
-
     const selectedPrice = product.prices.find(
-      (price) => price.measure_unit.id === measureUnit.id,
+      (price) => price.measure_unit.id === addToCartDto.measure_unit_id,
     );
     if (!selectedPrice) {
       throw new BadRequestException('Price for selected measure unit not found');
@@ -138,7 +131,7 @@ export class CartService {
         unit_price_snapshot: selectedPrice.price,
         cart,
         product,
-        measure_unit: measureUnit,
+        measure_unit: selectedPrice.measure_unit,
       });
     }
 
@@ -184,8 +177,7 @@ export class CartService {
   /**
    * Calculate total price of cart
    */
-  async calculateCartTotal(userId: number): Promise<number> {
-    const cart = await this.getOrCreateCartByUserId(userId);
+  private calculateCartTotalFromCart(cart: Cart): number {
     let total = 0;
 
     for (const item of cart.items) {
@@ -200,7 +192,7 @@ export class CartService {
    */
   async getCartSummary(userId: number) {
     const cart = await this.getOrCreateCartByUserId(userId);
-    const total = await this.calculateCartTotal(userId);
+    const total = this.calculateCartTotalFromCart(cart);
 
     return {
       cart_id: cart.id,

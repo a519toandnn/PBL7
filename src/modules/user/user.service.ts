@@ -68,6 +68,15 @@ export class UserService {
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
 
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const existingEmailUser = await this.userRepository.findOne({
+        where: { email: updateUserDto.email },
+      });
+      if (existingEmailUser) {
+        throw new BadRequestException('Email already exists');
+      }
+    }
+
     // Hash password if provided in update - check old password first
     if (updateUserDto.password) {
       if (!updateUserDto.old_password) {

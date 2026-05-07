@@ -10,14 +10,13 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { UserRole } from './entities/user.entity';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Controller('user')
 export class UserController {
@@ -36,8 +35,7 @@ export class UserController {
    * Get all users (Admin only - currently no role check)
    */
   @Get()
-  @UseGuards(JwtGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(JwtGuard, AdminGuard)
   findAll() {
     return this.userService.findAll();
   }
@@ -55,10 +53,9 @@ export class UserController {
    * Get user by ID (Admin only)
    */
   @Get(':id')
-  @UseGuards(JwtGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  findOne(@Param('id') id: string) {
-    return this.userService.findOne(+id);
+  @UseGuards(JwtGuard, AdminGuard)
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.findOne(id);
   }
 
   /**
@@ -67,19 +64,24 @@ export class UserController {
   @Patch('profile')
   @UseGuards(JwtGuard)
   updateProfile(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
-    // Prevent customers from escalating privileges via profile update
-    const { role, status, ...safe } = updateUserDto as any;
-    return this.userService.update(req.user.userId, safe);
+    const profileUpdateDto: UpdateUserDto = {
+      full_name: updateUserDto.full_name,
+      email: updateUserDto.email,
+      password: updateUserDto.password,
+      old_password: updateUserDto.old_password,
+      phone: updateUserDto.phone,
+    };
+
+    return this.userService.update(req.user.userId, profileUpdateDto);
   }
 
   /**
    * Update user by ID (Admin only)
    */
   @Patch(':id')
-  @UseGuards(JwtGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
+  @UseGuards(JwtGuard, AdminGuard)
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
+    return this.userService.update(id, updateUserDto);
   }
 
   /**
@@ -89,7 +91,8 @@ export class UserController {
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
+  @UseGuards(JwtGuard, AdminGuard)
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.remove(id);
   }
 }

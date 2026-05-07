@@ -6,9 +6,7 @@ import {
   Patch,
   Param,
   Delete,
-  UseGuards,
-  Request,
-  ForbiddenException,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -41,42 +39,31 @@ export class OrderController {
    * GET /order/user/:userId - Get all orders for user
    */
   @Get('user/:userId')
-  @UseGuards(JwtGuard)
-  getOrdersByUserId(@Param('userId') userId: string, @Request() req: any) {
-    const requestedId = Number(userId);
-    const isAdmin = req.user?.role === UserRole.ADMIN;
-    if (!isAdmin && req.user?.userId !== requestedId) {
-      throw new ForbiddenException('You can only view your own orders');
-    }
-    return this.orderService.getOrdersByUserId(+userId);
+  getOrdersByUserId(@Param('userId', ParseIntPipe) userId: number) {
+    return this.orderService.getOrdersByUserId(userId);
   }
 
   /**
    * GET /order/:id/details - Get order details with items
    */
   @Get(':id/details')
-  @UseGuards(JwtGuard)
-  getOrderDetails(@Param('id') id: string) {
-    return this.orderService.getOrderDetails(+id);
+  getOrderDetails(@Param('id', ParseIntPipe) id: number) {
+    return this.orderService.getOrderDetails(id);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.orderService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.orderService.findOne(id);
   }
 
   @Patch(':id')
-  @UseGuards(JwtGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  update(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
-    return this.orderService.update(+id, updateOrderDto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateOrderDto: UpdateOrderDto) {
+    return this.orderService.update(id, updateOrderDto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  remove(@Param('id') id: string) {
-    return this.orderService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.orderService.remove(id);
   }
 
   /**
@@ -84,9 +71,9 @@ export class OrderController {
    */
   @Post('user/:userId/checkout')
   checkout(
-    @Param('userId') userId: string,
+    @Param('userId', ParseIntPipe) userId: number,
     @Body() checkoutDto: CheckoutDto,
   ) {
-    return this.orderService.createOrderFromCart(+userId, checkoutDto.note);
+    return this.orderService.createOrderFromCart(userId, checkoutDto.note);
   }
 }

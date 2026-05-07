@@ -9,6 +9,8 @@ import {
   Query,
   DefaultValuePipe,
   ParseIntPipe,
+  BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { MedicineService } from './medicine.service';
 import { CreateMedicineDto } from './dto/create-medicine.dto';
@@ -16,6 +18,8 @@ import { UpdateMedicineDto } from './dto/update-medicine.dto';
 import { MedicineListItemDto } from './dto/medicine-listing.dto';
 import { MedicineSearchItemDto } from './dto/medicine-search.dto';
 import { MedicineDetailDto } from './dto/medicine-detail.dto';
+import { JwtGuard } from '../auth/guards/jwt.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Controller('medicines')
 export class MedicineController {
@@ -26,6 +30,10 @@ export class MedicineController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ): Promise<MedicineListItemDto[]> {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('page and limit must be greater than 0');
+    }
+
     return this.medicineService.findAllPaginated(page, Math.min(limit, 100));
   }
 
@@ -35,6 +43,10 @@ export class MedicineController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ): Promise<MedicineSearchItemDto[]> {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('page and limit must be greater than 0');
+    }
+
     return this.medicineService.searchBySlug(query, page, Math.min(limit, 50));
   }
 
@@ -44,17 +56,20 @@ export class MedicineController {
   }
 
   @Post()
+  @UseGuards(JwtGuard, AdminGuard)
   create(@Body() createMedicineDto: CreateMedicineDto) {
     return this.medicineService.create(createMedicineDto);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMedicineDto: UpdateMedicineDto) {
-    return this.medicineService.update(+id, updateMedicineDto);
+  @UseGuards(JwtGuard, AdminGuard)
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateMedicineDto: UpdateMedicineDto) {
+    return this.medicineService.update(id, updateMedicineDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.medicineService.remove(+id);
+  @UseGuards(JwtGuard, AdminGuard)
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.medicineService.remove(id);
   }
 }
