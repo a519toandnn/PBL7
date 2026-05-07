@@ -4,7 +4,6 @@ import { Repository } from 'typeorm';
 import { CartItem } from './entities/cartitem.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { Medicine } from '../medicine/entities/medicine.entity';
-import { MeasureUnit } from '../medicine/entities/measure-unit.entity';
 import { CreateCartitemDto } from './dto/create-cartitem.dto';
 import { UpdateCartitemDto } from './dto/update-cartitem.dto';
 
@@ -17,8 +16,6 @@ export class CartitemService {
     private readonly cartRepository: Repository<Cart>,
     @InjectRepository(Medicine)
     private readonly medicineRepository: Repository<Medicine>,
-    @InjectRepository(MeasureUnit)
-    private readonly measureUnitRepository: Repository<MeasureUnit>,
   ) {}
 
   async create(createCartitemDto: CreateCartitemDto): Promise<CartItem> {
@@ -36,13 +33,6 @@ export class CartitemService {
       throw new BadRequestException('Product not found');
     }
 
-    const measureUnit = await this.measureUnitRepository.findOne({
-      where: { id: createCartitemDto.measure_unit_id },
-    });
-    if (!measureUnit) {
-      throw new BadRequestException('Measure unit not found');
-    }
-
     const selectedPrice = product.prices.find(
       (price) => price.measure_unit.id === createCartitemDto.measure_unit_id,
     );
@@ -55,7 +45,7 @@ export class CartitemService {
       unit_price_snapshot: selectedPrice.price,
       cart,
       product,
-      measure_unit: measureUnit,
+      measure_unit: selectedPrice.measure_unit,
     });
     return this.cartItemRepository.save(cartItem);
   }

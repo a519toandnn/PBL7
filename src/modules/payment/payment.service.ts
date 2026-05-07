@@ -1,9 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
-import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cartitem/entities/cartitem.entity';
 import { PaymentMethod } from './entities/payment-method.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -12,12 +11,11 @@ import { UpdatePaymentDto } from './dto/update-payment.dto';
 @Injectable()
 export class PaymentService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
-    @InjectRepository(Cart)
-    private readonly cartRepository: Repository<Cart>,
     @InjectRepository(CartItem)
     private readonly cartItemRepository: Repository<CartItem>,
     @InjectRepository(PaymentMethod)
@@ -103,48 +101,59 @@ export class PaymentService {
     payment: Payment;
     message: string;
   }> {
-    const order = await this.orderRepository.findOne({
-      where: { id: orderId },
-      relations: ['user', 'user.cart', 'user.cart.items'],
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!order) {
-      throw new BadRequestException('Order not found');
-    }
-
-    const paymentMethod = await this.getOrCreatePaymentMethod(paymentMethodCode);
-
-    const payment = this.paymentRepository.create({
-      order,
-      payment_method: paymentMethod,
-      amount: Number(order.total_amount),
-      status: PaymentStatus.PENDING,
-      provider_txn_id: null,
-      paid_at: null,
-    });
-
-    const savedPayment = await this.paymentRepository.save(payment);
-
-    savedPayment.status = PaymentStatus.SUCCESS;
-    savedPayment.paid_at = new Date();
-    const processedPayment = await this.paymentRepository.save(savedPayment);
-
-    order.status = OrderStatus.PAID;
-    await this.orderRepository.save(order);
-
-    if (order.user && order.user.cart) {
-      const cartItems = await this.cartItemRepository.find({
-        where: { cart: { id: order.user.cart.id } },
+    try {
+      const order = await queryRunner.manager.findOne(Order, {
+        where: { id: orderId },
+        relations: ['user', 'user.cart', 'user.cart.items'],
       });
-      if (cartItems.length > 0) {
-        await this.cartItemRepository.remove(cartItems);
-      }
-    }
 
-    return {
-      payment: processedPayment,
-      message: 'Payment successful. Your order has been confirmed and cart has been cleared.',
-    };
+      if (!order) {
+        throw new BadRequestException('Order not found');
+      }
+
+      const paymentMethod = await this.getOrCreatePaymentMethod(
+        paymentMethodCode,
+        queryRunner.manager,
+      );
+
+      const payment = queryRunner.manager.create(Payment, {
+        order,
+        payment_method: paymentMethod,
+        amount: Number(order.total_amount),
+        status: PaymentStatus.PENDING,
+        provider_txn_id: null,
+        paid_at: null,
+      });
+
+      const savedPayment = await queryRunner.manager.save(Payment, payment);
+
+      savedPayment.status = PaymentStatus.SUCCESS;
+      savedPayment.paid_at = new Date();
+      const processedPayment = await queryRunner.manager.save(Payment, savedPayment);
+
+      order.status = OrderStatus.PAID;
+      await queryRunner.manager.save(Order, order);
+
+      if (order.user?.cart?.items?.length) {
+        await queryRunner.manager.remove(CartItem, order.user.cart.items);
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        payment: processedPayment,
+        message: 'Payment successful. Your order has been confirmed and cart has been cleared.',
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   /**
@@ -183,11 +192,18 @@ export class PaymentService {
     return payments;
   }
 
-  private async getOrCreatePaymentMethod(code: string): Promise<PaymentMethod> {
-    let paymentMethod = await this.paymentMethodRepository.findOne({ where: { code } });
+  private async getOrCreatePaymentMethod(
+    code: string,
+    manager?: EntityManager,
+  ): Promise<PaymentMethod> {
+    const paymentMethodRepository = manager
+      ? manager.getRepository(PaymentMethod)
+      : this.paymentMethodRepository;
+
+    let paymentMethod = await paymentMethodRepository.findOne({ where: { code } });
     if (!paymentMethod) {
-      paymentMethod = await this.paymentMethodRepository.save(
-        this.paymentMethodRepository.create({
+      paymentMethod = await paymentMethodRepository.save(
+        paymentMethodRepository.create({
           code,
           name: code,
           is_active: true,

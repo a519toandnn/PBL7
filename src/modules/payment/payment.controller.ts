@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -32,31 +33,31 @@ export class PaymentController {
    * GET /payment/order/:orderId - Get payment details by order ID
    */
   @Get('order/:orderId')
-  getPaymentByOrderId(@Param('orderId') orderId: string) {
-    return this.paymentService.getPaymentByOrderId(+orderId);
+  getPaymentByOrderId(@Param('orderId', ParseIntPipe) orderId: number) {
+    return this.paymentService.getPaymentByOrderId(orderId);
   }
 
   /**
    * GET /payment/:id/details - Get payment details
    */
   @Get(':id/details')
-  getPaymentDetails(@Param('id') id: string) {
-    return this.paymentService.getPaymentDetails(+id);
+  getPaymentDetails(@Param('id', ParseIntPipe) id: number) {
+    return this.paymentService.getPaymentDetails(id);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.paymentService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.paymentService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePaymentDto: UpdatePaymentDto) {
-    return this.paymentService.update(+id, updatePaymentDto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() updatePaymentDto: UpdatePaymentDto) {
+    return this.paymentService.update(id, updatePaymentDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.paymentService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.paymentService.remove(id);
   }
 
   /**
@@ -65,9 +66,9 @@ export class PaymentController {
    */
   @Post('order/:orderId/process')
   processPayment(
-    @Param('orderId') orderId: string,
+    @Param('orderId', ParseIntPipe) orderId: number,
     @Body() processPaymentDto: ProcessPaymentDto,
   ) {
-    return this.paymentService.processPayment(+orderId, processPaymentDto.payment_method_code);
+    return this.paymentService.processPayment(orderId, processPaymentDto.payment_method_code);
   }
 }

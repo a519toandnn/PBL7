@@ -6,7 +6,6 @@ import {
   OneToMany,
   UpdateDateColumn,
   CreateDateColumn,
-  Index,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 import { CartItem } from '../../cartitem/entities/cartitem.entity';

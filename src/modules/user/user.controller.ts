@@ -10,11 +10,13 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Controller('user')
 export class UserController {
@@ -33,6 +35,7 @@ export class UserController {
    * Get all users (Admin only - currently no role check)
    */
   @Get()
+  @UseGuards(JwtGuard, AdminGuard)
   findAll() {
     return this.userService.findAll();
   }
@@ -50,8 +53,9 @@ export class UserController {
    * Get user by ID (Admin only)
    */
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.userService.findOne(+id);
+  @UseGuards(JwtGuard, AdminGuard)
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.findOne(id);
   }
 
   /**
@@ -60,15 +64,24 @@ export class UserController {
   @Patch('profile')
   @UseGuards(JwtGuard)
   updateProfile(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(req.user.userId, updateUserDto);
+    const profileUpdateDto: UpdateUserDto = {
+      full_name: updateUserDto.full_name,
+      email: updateUserDto.email,
+      password: updateUserDto.password,
+      old_password: updateUserDto.old_password,
+      phone: updateUserDto.phone,
+    };
+
+    return this.userService.update(req.user.userId, profileUpdateDto);
   }
 
   /**
    * Update user by ID (Admin only)
    */
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
+  @UseGuards(JwtGuard, AdminGuard)
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
+    return this.userService.update(id, updateUserDto);
   }
 
   /**
@@ -76,7 +89,8 @@ export class UserController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
+  @UseGuards(JwtGuard, AdminGuard)
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.remove(id);
   }
 }

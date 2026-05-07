@@ -1,7 +1,8 @@
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMinSize, IsArray, IsEnum, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { OrderStatus } from '../entities/order.entity';
 
-class CreateOrderItemInputDto {
+export class CreateOrderItemInputDto {
   @IsNumber()
   product_id: number;
 
@@ -26,5 +27,8 @@ export class CreateOrderDto {
   status?: OrderStatus;
 
   @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderItemInputDto)
   items: CreateOrderItemInputDto[];
 }
