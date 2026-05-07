@@ -15,6 +15,9 @@ import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserRole } from './entities/user.entity';
 
 @Controller('user')
 export class UserController {
@@ -33,6 +36,8 @@ export class UserController {
    * Get all users (Admin only - currently no role check)
    */
   @Get()
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   findAll() {
     return this.userService.findAll();
   }
@@ -50,6 +55,8 @@ export class UserController {
    * Get user by ID (Admin only)
    */
   @Get(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   findOne(@Param('id') id: string) {
     return this.userService.findOne(+id);
   }
@@ -60,13 +67,17 @@ export class UserController {
   @Patch('profile')
   @UseGuards(JwtGuard)
   updateProfile(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(req.user.userId, updateUserDto);
+    // Prevent customers from escalating privileges via profile update
+    const { role, status, ...safe } = updateUserDto as any;
+    return this.userService.update(req.user.userId, safe);
   }
 
   /**
    * Update user by ID (Admin only)
    */
   @Patch(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.userService.update(+id, updateUserDto);
   }
@@ -75,6 +86,8 @@ export class UserController {
    * Delete user by ID (Admin only)
    */
   @Delete(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   remove(@Param('id') id: string) {
     return this.userService.remove(+id);
