@@ -12,6 +12,8 @@ import { CartitemModule } from './modules/cartitem/cartitem.module';
 import { OrderModule } from './modules/order/order.module';
 import { OrderitemModule } from './modules/orderitem/orderitem.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { DoctorModule } from './modules/doctor/doctor.module';
 import { typeORMConfig } from './configs/typeorm.config';
 
 @Module({
@@ -34,6 +36,8 @@ import { typeORMConfig } from './configs/typeorm.config';
     OrderModule,
     OrderitemModule,
     PaymentModule,
+    ChatModule,
+    DoctorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

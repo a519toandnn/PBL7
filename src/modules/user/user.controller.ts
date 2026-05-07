@@ -88,6 +88,8 @@ export class UserController {
    * Delete user by ID (Admin only)
    */
   @Delete(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtGuard, AdminGuard)
   remove(@Param('id', ParseIntPipe) id: number) {

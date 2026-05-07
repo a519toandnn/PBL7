@@ -12,6 +12,10 @@ import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { CheckoutDto } from './dto/checkout.dto';
+import { JwtGuard } from '../auth/guards/jwt.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserRole } from '../user/entities/user.entity';
 
 @Controller('order')
 export class OrderController {
@@ -23,6 +27,8 @@ export class OrderController {
   }
 
   @Get()
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   findAll() {
     return this.orderService.findAll();
   }
