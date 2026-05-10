@@ -15,18 +15,18 @@ const ProductDetailScreen = () => {
     const [quantity, setQuantity] = useState(1);
     const { title } = useParams();
     const [data] = useFetch('products');
-    const { handleCart , orders } = useOrder();
+    const { handleCart, orders } = useOrder();
     const { user } = useAuth();
     const history = useHistory();
 
     // Handle Add to Cart with login check
     const handleAddToCart = (product) => {
-        if (!user.uid) {
+        if (!user || !user.id) {
             swal("Login Required", "Please sign in to add items to your cart", "info");
             history.push('/signin');
             return;
         }
-        
+
         handleCart(product, quantity);
         setDisabled(true);
         setQuantity(1);
@@ -67,20 +67,20 @@ const ProductDetailScreen = () => {
                                     <div className="py-4 border-b border-gray-400">
                                         <p className="text-gray-700 font-semibold mb-2">Quantity:</p>
                                         <div className="flex items-center space-x-3">
-                                            <button 
+                                            <button
                                                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
                                                 className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 font-bold"
                                             >
                                                 −
                                             </button>
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 min="1"
-                                                value={quantity} 
+                                                value={quantity}
                                                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                                                 className="w-20 text-center border border-gray-300 rounded py-2"
                                             />
-                                            <button 
+                                            <button
                                                 onClick={() => setQuantity(quantity + 1)}
                                                 className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 font-bold"
                                             >
@@ -90,13 +90,13 @@ const ProductDetailScreen = () => {
                                     </div>
                                     <div className="flex items-center justify-between py-6">
                                         <h2 className="text-3xl text-black font-bold poppins">${product.price}</h2>
-                                        <button disabled={disabled} className={` ${disabled} && "opacity-30" w-36 btn-primary py-3 px-4 poppins text-sm flex items-center space-x-3 text-center justify-center`} 
+                                        <button disabled={disabled} className={` ${disabled} && "opacity-30" w-36 btn-primary py-3 px-4 poppins text-sm flex items-center space-x-3 text-center justify-center`}
                                             onClick={() => handleAddToCart(product)}
-                                            
+
                                         >
                                             <BsCart2 />
                                             <span>{orders.filter(item => item.id === product.id) || disabled ? "Added" : "Add To Cart"}</span>
-                                            
+
                                         </button>
                                     </div>
                                 </Fade>
