@@ -26,8 +26,13 @@ export const fetchMedicinesAsProducts = async () => {
     throw new Error(`Failed to fetch medicines: ${response.status}`);
   }
 
-  const data = await response.json();
-  const medicines = Array.isArray(data) ? data : data?.data || [];
+  const json = await response.json();
+  const payload = json?.data || json;
+  const medicines = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : [];
 
   return medicines.map(mapMedicineToProduct);
 };
