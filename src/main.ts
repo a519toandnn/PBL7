@@ -12,7 +12,14 @@ async function bootstrap() {
   app.enableCors({
     origin: [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/],
   });
-  
+//   app.enableCors({
+//   origin: '*', // CHO PHÉP TẤT CẢ - Cách nhanh nhất để qua môn
+//   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+//   allowedHeaders: 'Content-Type,Accept,Authorization',
+//   credentials: true,
+// });
+
+
   // Enable validation for DTOs
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
