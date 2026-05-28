@@ -29,6 +29,7 @@ const OrderScreen = () => {
   const loadHistory = async () => {
     setLoading(true);
     try {
+// lấy ds đơn hàng user lần đầu (sau đó có thể refresh bằng nút) - ⭐ NEW: thêm timeout tránh treo UI nếu API chậm hoặc lỗi
       const res = await fetch(`${apiBase}/order/user/${user.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });

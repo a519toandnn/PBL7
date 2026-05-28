@@ -10,6 +10,7 @@ import { fetchMedicinesAsProducts } from '../utils/productsApi';
 
 const AdminScreen = () => {
   const [products, setProducts] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
@@ -129,6 +130,13 @@ const AdminScreen = () => {
     });
   };
 
+  // Filter products based on search term
+  const filteredProducts = products.filter(p =>
+    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -143,8 +151,27 @@ const AdminScreen = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Admin Dashboard</h1>
+          <div className="flex justify-between items-center gap-4 mb-6">
+            <input 
+              type="text"
+              placeholder="Tìm sản phẩm..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">Admin Dashboard</h1>
           <div className="flex gap-3">
             <button
               onClick={() => history.push('/admin/stats')}
@@ -197,11 +224,11 @@ const AdminScreen = () => {
         )}
 
         {/* Products Table */}
-        <AdminProductTable products={products} onEdit={handleEdit} onDelete={handleDelete} />
+        <AdminProductTable products={filteredProducts} onEdit={handleEdit} onDelete={handleDelete} />
 
-        {products.length === 0 && !showForm && (
+        {filteredProducts.length === 0 && !showForm && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No products found. Click "Add Product" to get started.</p>
+            <p className="text-gray-500 text-lg">{searchTerm ? 'No products match your search.' : 'No products found. Click "Add Product" to get started.'}</p>
           </div>
         )}
 

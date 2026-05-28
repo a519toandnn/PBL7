@@ -17,8 +17,7 @@ const Navbar = () => {
         { id: 1, text: 'Home', to: '/' },
         { id: 2, text: 'Products', to: '/products' },
         { id: 3, text: 'Consultation', to: '/consultation' },
-        { id: 4, text: 'Doctor Chat', to: '/doctor-chat' },
-        { id: 5, text: 'Contact', to: '/contact' },
+        { id: 4, text: 'Contact', to: '/contact' },
     ]
 
     //handle search

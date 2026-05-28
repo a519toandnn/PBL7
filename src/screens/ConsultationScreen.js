@@ -108,8 +108,13 @@ const ConsultationScreen = () => {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Tư Vấn Tình Hình Sức Khỏe</h1>
           <p className="text-gray-600 text-lg">
-            Tìm hiểu về các tình trạng sức khỏe phổ biến, triệu chứng, thuốc phù hợp và lời khuyên
+            Chat với AI để được tư vấn nhanh về tình trạng sức khỏe và thuốc phù hợp
           </p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6 mb-10">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Chat với AI</h2>
+          <ChatBox />
         </div>
 
         {/* Health Conditions List */}
@@ -178,45 +183,7 @@ const ConsultationScreen = () => {
             vui lòng liên hệ với điều dưỡng viên hoặc bác sĩ của chúng tôi để được tư vấn chi tiết.
           </p>
         </div>
-        {/* Ask a Pharmacist */}
-        <div className="mt-8 bg-white rounded-lg shadow p-6">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">📝 Hỏi Dược Sĩ</h3>
-          <p className="text-gray-600 mb-4">Gửi câu hỏi của bạn, dược sĩ sẽ trả lời (demo: phản hồi mô phỏng).</p>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const form = e.target;
-            const name = form.name.value.trim();
-            const email = form.email.value.trim();
-            const question = form.question.value.trim();
-            if (!name || !email || !question) {
-              return alert('Vui lòng điền đầy đủ thông tin');
-            }
-            const saved = JSON.parse(localStorage.getItem('consultationQuestions') || '[]');
-            saved.push({ id: Date.now(), name, email, question, date: new Date().toISOString() });
-            localStorage.setItem('consultationQuestions', JSON.stringify(saved));
-            form.reset();
-            alert('Câu hỏi của bạn đã được gửi (demo). Dược sĩ sẽ phản hồi sớm.');
-          }}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <input name="name" placeholder="Họ và tên" className="px-4 py-3 border rounded" />
-              <input name="email" placeholder="Email" className="px-4 py-3 border rounded" />
-              <input name="phone" placeholder="Số điện thoại (tùy chọn)" className="px-4 py-3 border rounded" />
-            </div>
-            <div className="mb-4">
-              <textarea name="question" rows="4" placeholder="Mô tả triệu chứng hoặc câu hỏi" className="w-full px-4 py-3 border rounded" />
-            </div>
-            <div className="flex gap-3">
-              <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded">Gửi câu hỏi</button>
-              <button type="button" onClick={() => { localStorage.removeItem('consultationQuestions'); alert('Demo: Đã xóa câu hỏi demo'); }} className="bg-gray-200 px-6 py-3 rounded">Xóa demo</button>
-            </div>
-          </form>
-        </div>
-
-        {/* Chatbot */}
-        <div className="mt-8 bg-white rounded-lg shadow p-6">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">💬 Chat với bot tư vấn</h3>
-          <ChatBox />
-        </div>
+        
       </div>
     </div>
   );

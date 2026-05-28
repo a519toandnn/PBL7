@@ -22,7 +22,6 @@ import ConsultationScreen from './screens/ConsultationScreen';
 import AdminScreen from './screens/AdminScreen';
 import OrderManagementScreen from './screens/OrderManagementScreen';
 import AdminConsultationsScreen from './screens/AdminConsultationsScreen';
-import DoctorChatScreen from './screens/DoctorChatScreen';
 import AdminMessagesScreen from './screens/AdminMessagesScreen';
 import AdminCustomersScreen from './screens/AdminCustomersScreen';
 import AdminStatsScreen from './screens/AdminStatsScreen';
@@ -45,7 +44,6 @@ const App = () => {
             <AdminRoute exact path="/admin/messages"><AdminMessagesScreen /></AdminRoute>
             <AdminRoute exact path="/admin/customers"><AdminCustomersScreen /></AdminRoute>
             <AdminRoute exact path="/admin/stats"><AdminStatsScreen /></AdminRoute>
-            <PrivateRoute exact path="/doctor-chat"><DoctorChatScreen /></PrivateRoute>
             <PublicRoute path="/signup"><SignUpScreen /></PublicRoute>
             <PublicRoute path="/signin"><SignInScreen /></PublicRoute>
             <Route exact path="/services/:title"><ServicesDetailScreen /></Route>
