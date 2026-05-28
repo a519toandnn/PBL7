@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Cart } from './entities/cart.entity';
@@ -97,7 +101,10 @@ export class CartService {
   /**
    * Add item to cart or update quantity if exists
    */
-  async addItemToCart(userId: number, addToCartDto: AddToCartDto): Promise<Cart> {
+  async addItemToCart(
+    userId: number,
+    addToCartDto: AddToCartDto,
+  ) {
     const cart = await this.getOrCreateCartByUserId(userId);
 
     const product = await this.medicineRepository.findOne({
@@ -112,32 +119,46 @@ export class CartService {
       (price) => price.measure_unit.id === addToCartDto.measure_unit_id,
     );
     if (!selectedPrice) {
-      throw new BadRequestException('Price for selected measure unit not found');
+      throw new BadRequestException(
+        'Price for selected measure unit not found',
+      );
     }
 
-    let cartItem = await this.cartItemRepository.findOne({
-      where: {
-        cart: { id: cart.id },
-        product: { id: addToCartDto.product_id },
-        measure_unit: { id: addToCartDto.measure_unit_id },
-      },
+    const upsertResult = await this.cartItemRepository.query(
+      `
+        INSERT INTO cart_items (
+          cart_id,
+          product_id,
+          measure_unit_id,
+          quantity,
+          unit_price_snapshot
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (cart_id, product_id, measure_unit_id)
+        DO UPDATE SET
+          quantity = cart_items.quantity + EXCLUDED.quantity,
+          unit_price_snapshot = EXCLUDED.unit_price_snapshot
+        RETURNING id
+      `,
+      [
+        cart.id,
+        addToCartDto.product_id,
+        addToCartDto.measure_unit_id,
+        addToCartDto.quantity,
+        selectedPrice.price,
+      ],
+    );
+
+    const cartItem = await this.cartItemRepository.findOne({
+      where: { id: Number(upsertResult[0].id) },
+      relations: ['product', 'measure_unit'],
     });
 
-    if (cartItem) {
-      cartItem.quantity += addToCartDto.quantity;
-    } else {
-      cartItem = this.cartItemRepository.create({
-        quantity: addToCartDto.quantity,
-        unit_price_snapshot: selectedPrice.price,
-        cart,
-        product,
-        measure_unit: selectedPrice.measure_unit,
-      });
+    if (!cartItem) {
+      throw new NotFoundException('Cart item not found after add');
     }
 
-    await this.cartItemRepository.save(cartItem);
-
-    return this.findOne(cart.id);
+    return this.mapCartItemResponse(cart.id, cartItem);
   }
 
   /**
@@ -147,7 +168,7 @@ export class CartService {
     userId: number,
     productId: number,
     measureUnitId: number,
-  ): Promise<Cart> {
+  ) {
     const cart = await this.getOrCreateCartByUserId(userId);
 
     const cartItem = await this.cartItemRepository.findOne({
@@ -156,14 +177,16 @@ export class CartService {
         product: { id: productId },
         measure_unit: { id: measureUnitId },
       },
+      relations: ['product', 'measure_unit'],
     });
 
     if (!cartItem) {
       throw new NotFoundException('Item not in cart');
     }
 
+    const removedItem = this.mapCartItemResponse(cart.id, cartItem);
     await this.cartItemRepository.remove(cartItem);
-    return this.findOne(cart.id);
+    return removedItem;
   }
 
   /**
@@ -209,6 +232,27 @@ export class CartService {
       })),
       total_items: cart.items.length,
       total_price: total,
+    };
+  }
+
+  private mapCartItemResponse(cartId: number, item: CartItem) {
+    return {
+      cart_id: cartId,
+      cart_item_id: item.id,
+      product: {
+        id: item.product.id,
+        name: item.product.name,
+        slug: item.product.slug,
+      },
+      measure_unit: item.measure_unit
+        ? {
+            id: item.measure_unit.id,
+            name: item.measure_unit.name,
+          }
+        : null,
+      quantity: item.quantity,
+      unit_price: item.unit_price_snapshot,
+      subtotal: Number(item.unit_price_snapshot ?? 0) * item.quantity,
     };
   }
 }

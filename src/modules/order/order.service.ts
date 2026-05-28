@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { DataSource, Repository, In } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { Order, OrderStatus } from './entities/order.entity';
 import { User } from '../user/entities/user.entity';
 import { OrderItem } from '../orderitem/entities/orderitem.entity';
@@ -12,6 +17,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 @Injectable()
 export class OrderService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
     @InjectRepository(User)
@@ -57,7 +63,9 @@ export class OrderService {
       throw new BadRequestException(`Product not found: ${missing.join(', ')}`);
     }
 
-    const productMap = new Map(products.map((product) => [product.id, product]));
+    const productMap = new Map(
+      products.map((product) => [product.id, product]),
+    );
 
     for (const item of createOrderDto.items) {
       const product = productMap.get(item.product_id) as Medicine;
@@ -96,18 +104,74 @@ export class OrderService {
 
   async findAll(): Promise<Order[]> {
     return this.orderRepository.find({
-      relations: ['user', 'items', 'items.product', 'payments', 'payments.payment_method'],
-      order: { created_at: 'DESC' },
+      relations: [
+        'user',
+        'items',
+        'items.product',
+        'payments',
+        'payments.payment_method',
+      ],
+      order: { id: 'ASC' },
     });
+  }
+
+  async findAllPaginated(page: number = 1, limit: number = 20) {
+    const [data, total] = await this.orderRepository.findAndCount({
+      select: {
+        id: true,
+        order_no: true,
+        total_amount: true,
+        status: true,
+        note: true,
+        created_at: true,
+      },
+      relations: { user: true },
+      order: { id: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: number): Promise<Order> {
     const order = await this.orderRepository.findOne({
       where: { id },
-      relations: ['user', 'items', 'items.product', 'payments', 'payments.payment_method'],
+      relations: [
+        'user',
+        'items',
+        'items.product',
+        'payments',
+        'payments.payment_method',
+      ],
     });
     if (!order) {
       throw new NotFoundException(`Order with ID ${id} not found`);
+    }
+    return order;
+  }
+
+  async findOneForUser(orderId: number, userId: number): Promise<Order> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId, user: { id: userId } },
+      relations: [
+        'user',
+        'items',
+        'items.product',
+        'payments',
+        'payments.payment_method',
+      ],
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found');
     }
     return order;
   }
@@ -131,57 +195,77 @@ export class OrderService {
    */
   async createOrderFromCart(
     userId: number,
+    cartItemIds: number[],
     note?: string,
   ): Promise<Order> {
-    const cart = await this.cartRepository.findOne({
-      where: { user: { id: userId } },
-      relations: ['user', 'items', 'items.product', 'items.measure_unit'],
-    });
-
-    if (!cart?.user) {
-      throw new BadRequestException('User not found');
+    const uniqueCartItemIds = [...new Set(cartItemIds)];
+    if (uniqueCartItemIds.length !== cartItemIds.length) {
+      throw new BadRequestException('Duplicate cart item IDs are not allowed');
     }
 
-    if (!cart.items || cart.items.length === 0) {
-      throw new BadRequestException('Cart is empty');
-    }
+    const orderId = await this.dataSource.transaction(async (manager) => {
+      const cart = await manager.findOne(Cart, {
+        where: { user: { id: userId } },
+        relations: ['user', 'items', 'items.product', 'items.measure_unit'],
+      });
 
-    let total = 0;
-    const orderItems: OrderItem[] = [];
+      if (!cart?.user) {
+        throw new BadRequestException('User not found');
+      }
 
-    const order = await this.orderRepository.save(
-      this.orderRepository.create({
-        user: cart.user,
-        order_no: this.generateOrderNo(),
-        total_amount: 0,
-        note: note ?? null,
-        status: OrderStatus.PENDING,
-      }),
-    );
+      if (!cart.items || cart.items.length === 0) {
+        throw new BadRequestException('Cart is empty');
+      }
 
-    for (const cartItem of cart.items) {
-      const unitPrice = Number(cartItem.unit_price_snapshot ?? 0);
-      const lineTotal = unitPrice * cartItem.quantity;
-      total += lineTotal;
+      const selectedItems = cart.items.filter((item) =>
+        uniqueCartItemIds.includes(item.id),
+      );
 
-      orderItems.push(
-        this.orderItemRepository.create({
-          order,
-          product: cartItem.product,
-          product_name_snapshot: cartItem.product.name,
-          measure_unit_name_snapshot: cartItem.measure_unit?.name ?? null,
-          quantity: cartItem.quantity,
-          unit_price: unitPrice,
-          line_total: lineTotal,
+      if (selectedItems.length !== uniqueCartItemIds.length) {
+        throw new BadRequestException('One or more cart items are invalid');
+      }
+
+      let total = 0;
+      const orderItems: OrderItem[] = [];
+
+      const order = await manager.save(
+        Order,
+        manager.create(Order, {
+          user: cart.user,
+          order_no: this.generateOrderNo(),
+          total_amount: 0,
+          note: note ?? null,
+          status: OrderStatus.PENDING,
         }),
       );
-    }
 
-    await this.orderItemRepository.save(orderItems);
-    order.total_amount = total;
-    await this.orderRepository.save(order);
+      for (const cartItem of selectedItems) {
+        const unitPrice = Number(cartItem.unit_price_snapshot ?? 0);
+        const lineTotal = unitPrice * cartItem.quantity;
+        total += lineTotal;
 
-    return this.findOne(order.id);
+        orderItems.push(
+          manager.create(OrderItem, {
+            order,
+            product: cartItem.product,
+            product_name_snapshot: cartItem.product.name,
+            measure_unit_name_snapshot: cartItem.measure_unit?.name ?? null,
+            quantity: cartItem.quantity,
+            unit_price: unitPrice,
+            line_total: lineTotal,
+            cart_item_id: cartItem.id,
+          }),
+        );
+      }
+
+      await manager.save(OrderItem, orderItems);
+      order.total_amount = total;
+      await manager.save(Order, order);
+
+      return order.id;
+    });
+
+    return this.findOne(orderId);
   }
 
   /**
@@ -190,8 +274,13 @@ export class OrderService {
   async getOrdersByUserId(userId: number): Promise<Order[]> {
     const orders = await this.orderRepository.find({
       where: { user: { id: userId } },
-      relations: ['items', 'items.product', 'payments', 'payments.payment_method'],
-      order: { created_at: 'DESC' },
+      relations: [
+        'items',
+        'items.product',
+        'payments',
+        'payments.payment_method',
+      ],
+      order: { id: 'ASC' },
     });
 
     if (orders.length === 0) {
@@ -218,9 +307,18 @@ export class OrderService {
    */
   async getOrderDetails(orderId: number) {
     const order = await this.findOne(orderId);
+    return this.mapOrderDetails(order);
+  }
 
+  async getOrderDetailsForUser(orderId: number, userId: number) {
+    const order = await this.findOneForUser(orderId, userId);
+    return this.mapOrderDetails(order);
+  }
+
+  private mapOrderDetails(order: Order) {
     const items = order.items.map((item) => ({
       order_item_id: item.id,
+      cart_item_id: item.cart_item_id,
       product_id: item.product?.id ?? null,
       product_name: item.product_name_snapshot,
       unit_name: item.measure_unit_name_snapshot,
@@ -243,8 +341,8 @@ export class OrderService {
   }
 
   private generateOrderNo(): string {
-    const timestamp = Date.now().toString().slice(-8);
-    const random = Math.floor(Math.random() * 900 + 100);
-    return `ORD-${timestamp}${random}`;
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const random = randomUUID().slice(0, 8).toUpperCase();
+    return `ORD-${date}-${random}`;
   }
 }

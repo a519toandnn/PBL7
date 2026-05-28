@@ -1,5 +1,8 @@
-import { IsString, IsEnum } from 'class-validator';
-import { MedicineListItemDto, PaginatedMedicineListDto, PaginationMetadataDto } from './medicine-listing.dto';
+import { IsString, IsEnum, IsNumber, IsOptional } from 'class-validator';
+import {
+  MedicineListItemDto,
+  PaginationMetadataDto,
+} from './medicine-listing.dto';
 
 /**
  * Match type for search results
@@ -8,6 +11,7 @@ export enum SearchMatchType {
   EXACT = 'exact',
   PREFIX = 'prefix',
   PARTIAL = 'partial',
+  SEMANTIC = 'semantic',
 }
 
 /**
@@ -17,6 +21,10 @@ export enum SearchMatchType {
 export class MedicineSearchItemDto extends MedicineListItemDto {
   @IsEnum(SearchMatchType)
   match_type: SearchMatchType;
+
+  @IsOptional()
+  @IsNumber()
+  score?: number;
 }
 
 /**

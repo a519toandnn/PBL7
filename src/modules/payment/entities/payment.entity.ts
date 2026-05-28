@@ -18,6 +18,10 @@ export enum PaymentStatus {
 }
 
 @Entity('payment_transactions')
+@Index('idx_payment_order_success_unique', ['order'], {
+  unique: true,
+  where: `"status" = 'SUCCESS'`,
+})
 export class Payment {
   @PrimaryGeneratedColumn()
   id: number;
@@ -28,9 +32,13 @@ export class Payment {
   @JoinColumn({ name: 'order_id' })
   order: Order;
 
-  @ManyToOne(() => PaymentMethod, (paymentMethod) => paymentMethod.transactions, {
-    onDelete: 'RESTRICT',
-  })
+  @ManyToOne(
+    () => PaymentMethod,
+    (paymentMethod) => paymentMethod.transactions,
+    {
+      onDelete: 'RESTRICT',
+    },
+  )
   @JoinColumn({ name: 'payment_method_id' })
   payment_method: PaymentMethod;
 

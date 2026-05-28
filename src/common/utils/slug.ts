@@ -17,6 +17,8 @@ export function toSlug(text: string): string {
   return text
     // Step 1: Convert to lowercase
     .toLowerCase()
+    // Vietnamese d with stroke is not decomposed by NFD.
+    .replace(/đ/g, 'd')
     // Step 2: Normalize unicode (decompose accented characters)
     // NFD = "Canonical Decomposition"
     // This separates letters from diacritical marks

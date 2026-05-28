@@ -21,8 +21,10 @@
     "seed:units": "ts-node scripts/1-extract-measure-units.ts",
     "seed:categories": "ts-node scripts/2-extract-categories.ts",
     "seed:medicines": "ts-node scripts/3-import-medicines.ts",
+    "seed:data": "ts-node scripts/seed-data.ts",
+    "search:backfill": "ts-node scripts/backfill-medicine-search-embeddings.ts",
     "typeorm": "typeorm-ts-node-esm",
-    "typeorm:migration:run": "npm run build && typeorm-ts-node-esm migration:run -d dist/src/configs/typeorm.config.js"
+    "typeorm:migration:run": "npm run build && typeorm-ts-node-esm migration:run -d dist/src/configs/typeorm.datasource.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

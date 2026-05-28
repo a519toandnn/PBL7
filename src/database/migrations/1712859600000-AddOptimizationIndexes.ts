@@ -76,9 +76,9 @@ export class AddOptimizationIndexes1712859600000 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS "idx_cart_item_cart_id" ON "cart_items" ("cart_id")`
     );
 
-    // Foreign keys for payments
+    // Foreign keys for payment transactions
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_payment_order_id" ON "payments" ("order_id")`
+      `CREATE INDEX IF NOT EXISTS "idx_payment_order_id" ON "payment_transactions" ("order_id")`
     );
 
     console.log('✅ All optimization indexes created successfully');

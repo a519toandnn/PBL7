@@ -1,10 +1,15 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UserService {
@@ -49,6 +54,24 @@ export class UserService {
     });
   }
 
+  async findAllPaginated(page: number = 1, limit: number = 20) {
+    const [data, total] = await this.userRepository.findAndCount({
+      order: { created_at: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async findOne(id: number): Promise<User> {
     // Validate id
     if (!id || !Number.isInteger(id) || id <= 0) {
@@ -80,10 +103,15 @@ export class UserService {
     // Hash password if provided in update - check old password first
     if (updateUserDto.password) {
       if (!updateUserDto.old_password) {
-        throw new BadRequestException('Old password is required to change password');
+        throw new BadRequestException(
+          'Old password is required to change password',
+        );
       }
-      
-      const isPasswordValid = await bcrypt.compare(updateUserDto.old_password, user.password_hash);
+
+      const isPasswordValid = await bcrypt.compare(
+        updateUserDto.old_password,
+        user.password_hash,
+      );
       if (!isPasswordValid) {
         throw new BadRequestException('Old password is incorrect');
       }
@@ -103,6 +131,19 @@ export class UserService {
     });
 
     return this.userRepository.save(user);
+  }
+
+  async updateProfile(
+    id: number,
+    updateProfileDto: UpdateProfileDto,
+  ): Promise<User> {
+    return this.update(id, {
+      full_name: updateProfileDto.full_name,
+      email: updateProfileDto.email,
+      password: updateProfileDto.password,
+      old_password: updateProfileDto.old_password,
+      phone: updateProfileDto.phone,
+    });
   }
 
   async remove(id: number): Promise<void> {

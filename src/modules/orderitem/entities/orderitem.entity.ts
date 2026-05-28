@@ -29,6 +29,9 @@ export class OrderItem {
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   line_total: number;
 
+  @Column({ type: 'int', nullable: true })
+  cart_item_id: number | null;
+
   @ManyToOne(() => Order, (order) => order.items, {
     onDelete: 'CASCADE',
   })

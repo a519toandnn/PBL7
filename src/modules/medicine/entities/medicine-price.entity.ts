@@ -11,6 +11,9 @@ import { Medicine } from './medicine.entity';
 import { MeasureUnit } from './measure-unit.entity';
 
 @Entity('product_prices')
+@Index('idx_product_price_product_unit_unique', ['product', 'measure_unit'], {
+  unique: true,
+})
 export class MedicinePrice {
   @PrimaryGeneratedColumn()
   id: number;

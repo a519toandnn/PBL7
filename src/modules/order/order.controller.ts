@@ -7,6 +7,11 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  UseGuards,
+  Request,
+  Query,
+  DefaultValuePipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -22,23 +27,43 @@ export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
   @Post()
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.CUSTOMER)
   create(@Body() createOrderDto: CreateOrderDto) {
     return this.orderService.create(createOrderDto);
   }
 
-  @Get()
+  @Get('admin')
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  findAll() {
-    return this.orderService.findAll();
+  findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('page and limit must be greater than 0');
+    }
+
+    return this.orderService.findAllPaginated(page, Math.min(limit, 100));
   }
 
   // ===== E-Commerce Endpoints =====
 
   /**
-   * GET /order/user/:userId - Get all orders for user
+   * GET /order - Get all orders for current user
+   */
+  @Get()
+  @UseGuards(JwtGuard)
+  getMyOrders(@Request() req: any) {
+    return this.orderService.getOrdersByUserId(req.user.userId);
+  }
+
+  /**
+   * GET /order/user/:userId - Admin: Get all orders for a user
    */
   @Get('user/:userId')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   getOrdersByUserId(@Param('userId', ParseIntPipe) userId: number) {
     return this.orderService.getOrdersByUserId(userId);
   }
@@ -47,33 +72,44 @@ export class OrderController {
    * GET /order/:id/details - Get order details with items
    */
   @Get(':id/details')
-  getOrderDetails(@Param('id', ParseIntPipe) id: number) {
-    return this.orderService.getOrderDetails(id);
+  @UseGuards(JwtGuard)
+  getOrderDetails(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.orderService.getOrderDetailsForUser(id, req.user.userId);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.orderService.findOne(id);
+  @UseGuards(JwtGuard)
+  findOne(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.orderService.findOneForUser(id, req.user.userId);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateOrderDto: UpdateOrderDto) {
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateOrderDto: UpdateOrderDto,
+  ) {
     return this.orderService.update(id, updateOrderDto);
   }
 
   @Delete(':id')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.orderService.remove(id);
   }
 
   /**
-   * POST /order/user/:userId/checkout - Checkout cart to create order
+   * POST /order/checkout - Checkout current user's cart to create order
    */
-  @Post('user/:userId/checkout')
-  checkout(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() checkoutDto: CheckoutDto,
-  ) {
-    return this.orderService.createOrderFromCart(userId, checkoutDto.note);
+  @Post('checkout')
+  @UseGuards(JwtGuard)
+  checkout(@Request() req: any, @Body() checkoutDto: CheckoutDto) {
+    return this.orderService.createOrderFromCart(
+      req.user.userId,
+      checkoutDto.cart_item_ids,
+      checkoutDto.note,
+    );
   }
 }

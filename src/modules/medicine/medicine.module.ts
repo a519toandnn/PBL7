@@ -7,6 +7,10 @@ import { Category } from '../category/entities/category.entity';
 import { ProductCategory } from '../category/entities/product-category.entity';
 import { MedicinePrice } from './entities/medicine-price.entity';
 import { MeasureUnit } from './entities/measure-unit.entity';
+import { GeminiEmbeddingProvider } from './embedding/gemini-embedding.provider';
+import { MedicineSearchIndexService } from './services/medicine-search-index.service';
+import { MedicineSemanticSearchService } from './services/medicine-semantic-search.service';
+import { SearchQueryEmbeddingCacheService } from './services/search-query-embedding-cache.service';
 
 @Module({
   imports: [
@@ -19,7 +23,13 @@ import { MeasureUnit } from './entities/measure-unit.entity';
     ]),
   ],
   controllers: [MedicineController],
-  providers: [MedicineService],
+  providers: [
+    MedicineService,
+    GeminiEmbeddingProvider,
+    MedicineSearchIndexService,
+    MedicineSemanticSearchService,
+    SearchQueryEmbeddingCacheService,
+  ],
   exports: [MedicineService],
 })
 export class MedicineModule {}

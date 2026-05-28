@@ -1,9 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { CartitemService } from './cartitem.service';
 import { CreateCartitemDto } from './dto/create-cartitem.dto';
 import { UpdateCartitemDto } from './dto/update-cartitem.dto';
+import { JwtGuard } from '../auth/guards/jwt.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Controller('cartitem')
+@UseGuards(JwtGuard, AdminGuard)
 export class CartitemController {
   constructor(private readonly cartitemService: CartitemService) {}
 
@@ -23,7 +35,10 @@ export class CartitemController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCartitemDto: UpdateCartitemDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateCartitemDto: UpdateCartitemDto,
+  ) {
     return this.cartitemService.update(+id, updateCartitemDto);
   }
 

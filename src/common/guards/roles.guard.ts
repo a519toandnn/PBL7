@@ -1,6 +1,12 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { UserRole } from '../../modules/user/entities/user.entity';
+
+const ROLE_HIERARCHY: Record<UserRole, UserRole[]> = {
+  [UserRole.ADMIN]: [UserRole.ADMIN, UserRole.CUSTOMER],
+  [UserRole.CUSTOMER]: [UserRole.CUSTOMER],
+};
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -16,8 +22,10 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
     const role = user?.role;
+    const effectiveRoles = ROLE_HIERARCHY[role] ?? [role];
 
-    return requiredRoles.includes(role);
+    return requiredRoles.some((requiredRole) =>
+      effectiveRoles.includes(requiredRole as UserRole),
+    );
   }
 }
-

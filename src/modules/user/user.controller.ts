@@ -11,10 +11,14 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  Query,
+  DefaultValuePipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
@@ -36,8 +40,15 @@ export class UserController {
    */
   @Get()
   @UseGuards(JwtGuard, AdminGuard)
-  findAll() {
-    return this.userService.findAll();
+  findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('page and limit must be greater than 0');
+    }
+
+    return this.userService.findAllPaginated(page, Math.min(limit, 100));
   }
 
   /**
@@ -63,16 +74,11 @@ export class UserController {
    */
   @Patch('profile')
   @UseGuards(JwtGuard)
-  updateProfile(@Request() req: any, @Body() updateUserDto: UpdateUserDto) {
-    const profileUpdateDto: UpdateUserDto = {
-      full_name: updateUserDto.full_name,
-      email: updateUserDto.email,
-      password: updateUserDto.password,
-      old_password: updateUserDto.old_password,
-      phone: updateUserDto.phone,
-    };
-
-    return this.userService.update(req.user.userId, profileUpdateDto);
+  updateProfile(
+    @Request() req: any,
+    @Body() updateProfileDto: UpdateProfileDto,
+  ) {
+    return this.userService.updateProfile(req.user.userId, updateProfileDto);
   }
 
   /**
@@ -80,7 +86,10 @@ export class UserController {
    */
   @Patch(':id')
   @UseGuards(JwtGuard, AdminGuard)
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateUserDto: AdminUpdateUserDto,
+  ) {
     return this.userService.update(id, updateUserDto);
   }
 
@@ -88,10 +97,8 @@ export class UserController {
    * Delete user by ID (Admin only)
    */
   @Delete(':id')
-  @UseGuards(JwtGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @HttpCode(HttpStatus.OK)
   @UseGuards(JwtGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.userService.remove(id);
   }

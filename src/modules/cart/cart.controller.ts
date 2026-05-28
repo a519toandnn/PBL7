@@ -3,82 +3,58 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
-import { CreateCartDto } from './dto/create-cart.dto';
-import { UpdateCartDto } from './dto/update-cart.dto';
 import { AddToCartDto } from './dto/add-to-cart.dto';
+import { JwtGuard } from '../auth/guards/jwt.guard';
 
 @Controller('cart')
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
-  @Post()
-  create(@Body() createCartDto: CreateCartDto) {
-    return this.cartService.create(createCartDto);
-  }
+  // ===== E-Commerce Endpoints (Authenticated User) =====
 
+  /**
+   * GET /cart - Get current user's cart summary
+   */
   @Get()
-  findAll() {
-    return this.cartService.findAll();
-  }
-
-  // ===== E-Commerce Endpoints =====
-
-  /**
-   * GET /cart/user/:userId - Get cart summary for user
-   */
-  @Get('user/:userId')
-  getCartByUserId(@Param('userId') userId: string) {
-    return this.cartService.getCartSummary(+userId);
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.cartService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCartDto: UpdateCartDto) {
-    return this.cartService.update(+id, updateCartDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.cartService.remove(+id);
+  @UseGuards(JwtGuard)
+  getMyCart(@Request() req: any) {
+    return this.cartService.getCartSummary(req.user.userId);
   }
 
   /**
-   * POST /cart/user/:userId/add-item - Add item to cart
+   * POST /cart/add - Add item to current user's cart
    */
-  @Post('user/:userId/add-item')
-  addToCart(
-    @Param('userId') userId: string,
-    @Body() addToCartDto: AddToCartDto,
-  ) {
-    return this.cartService.addItemToCart(+userId, addToCartDto);
+  @Post('add')
+  @UseGuards(JwtGuard)
+  addToCart(@Request() req: any, @Body() addToCartDto: AddToCartDto) {
+    return this.cartService.addItemToCart(req.user.userId, addToCartDto);
   }
 
   /**
-   * DELETE /cart/user/:userId/item/:productId/unit/:measureUnitId - Remove item from cart
+   * DELETE /cart/item/:productId/unit/:measureUnitId - Remove item from current user's cart
    */
-  @Delete('user/:userId/item/:productId/unit/:measureUnitId')
+  @Delete('item/:productId/unit/:measureUnitId')
+  @UseGuards(JwtGuard)
   removeItemFromCart(
-    @Param('userId') userId: string,
+    @Request() req: any,
     @Param('productId') productId: string,
     @Param('measureUnitId') measureUnitId: string,
   ) {
-    return this.cartService.removeItemFromCart(+userId, +productId, +measureUnitId);
+    return this.cartService.removeItemFromCart(req.user.userId, +productId, +measureUnitId);
   }
 
   /**
-   * DELETE /cart/user/:userId/clear - Clear entire cart
+   * DELETE /cart/clear - Clear current user's cart
    */
-  @Delete('user/:userId/clear')
-  clearCart(@Param('userId') userId: string) {
-    return this.cartService.clearCart(+userId);
+  @Delete('clear')
+  @UseGuards(JwtGuard)
+  clearCart(@Request() req: any) {
+    return this.cartService.clearCart(req.user.userId);
   }
 }

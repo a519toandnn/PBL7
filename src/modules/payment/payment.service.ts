@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
 import { CartItem } from '../cartitem/entities/cartitem.entity';
@@ -30,7 +34,7 @@ export class PaymentService {
       throw new BadRequestException('Order not found');
     }
 
-    const paymentMethod = await this.getOrCreatePaymentMethod(
+    const paymentMethod = await this.getActivePaymentMethod(
       createPaymentDto.payment_method_code,
     );
 
@@ -48,8 +52,27 @@ export class PaymentService {
   async findAll(): Promise<Payment[]> {
     return this.paymentRepository.find({
       relations: ['order', 'payment_method'],
-      order: { created_at: 'DESC' },
+      order: { id: 'ASC' },
     });
+  }
+
+  async findAllPaginated(page: number = 1, limit: number = 20) {
+    const [data, total] = await this.paymentRepository.findAndCount({
+      relations: ['order', 'payment_method'],
+      order: { id: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: number): Promise<Payment> {
@@ -63,18 +86,33 @@ export class PaymentService {
     return payment;
   }
 
-  async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
+  async findOneForUser(paymentId: number, userId: number): Promise<Payment> {
+    const payment = await this.paymentRepository.findOne({
+      where: { id: paymentId, order: { user: { id: userId } } },
+      relations: ['order', 'payment_method'],
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    return payment;
+  }
+
+  async update(
+    id: number,
+    updatePaymentDto: UpdatePaymentDto,
+  ): Promise<Payment> {
     const payment = await this.findOne(id);
 
     if (updatePaymentDto.payment_method_code) {
-      payment.payment_method = await this.getOrCreatePaymentMethod(
+      payment.payment_method = await this.getActivePaymentMethod(
         updatePaymentDto.payment_method_code,
       );
     }
 
     payment.amount = updatePaymentDto.amount ?? payment.amount;
     payment.status = updatePaymentDto.status ?? payment.status;
-    payment.provider_txn_id = updatePaymentDto.provider_txn_id ?? payment.provider_txn_id;
+    payment.provider_txn_id =
+      updatePaymentDto.provider_txn_id ?? payment.provider_txn_id;
 
     return this.paymentRepository.save(payment);
   }
@@ -101,21 +139,48 @@ export class PaymentService {
     payment: Payment;
     message: string;
   }> {
+    return this.processPaymentInternal(orderId, paymentMethodCode);
+  }
+
+  async processPaymentForUser(
+    orderId: number,
+    userId: number,
+    paymentMethodCode: string,
+  ): Promise<{
+    payment: Payment;
+    message: string;
+  }> {
+    return this.processPaymentInternal(orderId, paymentMethodCode, userId);
+  }
+
+  private async processPaymentInternal(
+    orderId: number,
+    paymentMethodCode: string,
+    userId?: number,
+  ): Promise<{
+    payment: Payment;
+    message: string;
+  }> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
       const order = await queryRunner.manager.findOne(Order, {
-        where: { id: orderId },
-        relations: ['user', 'user.cart', 'user.cart.items'],
+        where: userId ? { id: orderId, user: { id: userId } } : { id: orderId },
+        relations: ['user', 'items'],
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!order) {
         throw new BadRequestException('Order not found');
       }
 
-      const paymentMethod = await this.getOrCreatePaymentMethod(
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BadRequestException('Order is not payable');
+      }
+
+      const paymentMethod = await this.getActivePaymentMethod(
         paymentMethodCode,
         queryRunner.manager,
       );
@@ -133,20 +198,30 @@ export class PaymentService {
 
       savedPayment.status = PaymentStatus.SUCCESS;
       savedPayment.paid_at = new Date();
-      const processedPayment = await queryRunner.manager.save(Payment, savedPayment);
+      const processedPayment = await queryRunner.manager.save(
+        Payment,
+        savedPayment,
+      );
 
       order.status = OrderStatus.PAID;
       await queryRunner.manager.save(Order, order);
 
-      if (order.user?.cart?.items?.length) {
-        await queryRunner.manager.remove(CartItem, order.user.cart.items);
+      const paidCartItemIds = order.items
+        .map((item) => item.cart_item_id)
+        .filter((id): id is number => id !== null);
+
+      if (paidCartItemIds.length > 0) {
+        await queryRunner.manager.delete(CartItem, {
+          id: In(paidCartItemIds),
+        });
       }
 
       await queryRunner.commitTransaction();
 
       return {
         payment: processedPayment,
-        message: 'Payment successful. Your order has been confirmed and cart has been cleared.',
+        message:
+          'Payment successful. Your order has been confirmed and selected cart items have been cleared.',
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -161,7 +236,15 @@ export class PaymentService {
    */
   async getPaymentDetails(paymentId: number) {
     const payment = await this.findOne(paymentId);
+    return this.mapPaymentDetails(payment);
+  }
 
+  async getPaymentDetailsForUser(paymentId: number, userId: number) {
+    const payment = await this.findOneForUser(paymentId, userId);
+    return this.mapPaymentDetails(payment);
+  }
+
+  private mapPaymentDetails(payment: Payment) {
     return {
       payment_id: payment.id,
       order_id: payment.order.id,
@@ -182,7 +265,7 @@ export class PaymentService {
     const payments = await this.paymentRepository.find({
       where: { order: { id: orderId } },
       relations: ['order', 'payment_method'],
-      order: { created_at: 'DESC' },
+      order: { id: 'ASC' },
     });
 
     if (payments.length === 0) {
@@ -192,7 +275,24 @@ export class PaymentService {
     return payments;
   }
 
-  private async getOrCreatePaymentMethod(
+  async getPaymentByOrderIdForUser(
+    orderId: number,
+    userId: number,
+  ): Promise<Payment[]> {
+    const payments = await this.paymentRepository.find({
+      where: { order: { id: orderId, user: { id: userId } } },
+      relations: ['order', 'payment_method'],
+      order: { id: 'ASC' },
+    });
+
+    if (payments.length === 0) {
+      throw new NotFoundException(`Payment for order ${orderId} not found`);
+    }
+
+    return payments;
+  }
+
+  private async getActivePaymentMethod(
     code: string,
     manager?: EntityManager,
   ): Promise<PaymentMethod> {
@@ -200,15 +300,11 @@ export class PaymentService {
       ? manager.getRepository(PaymentMethod)
       : this.paymentMethodRepository;
 
-    let paymentMethod = await paymentMethodRepository.findOne({ where: { code } });
+    const paymentMethod = await paymentMethodRepository.findOne({
+      where: { code, is_active: true },
+    });
     if (!paymentMethod) {
-      paymentMethod = await paymentMethodRepository.save(
-        paymentMethodRepository.create({
-          code,
-          name: code,
-          is_active: true,
-        }),
-      );
+      throw new BadRequestException('Unsupported payment method');
     }
 
     return paymentMethod;

@@ -48,7 +48,10 @@ export class CategoryService {
     });
   }
 
-  async update(id: number, updateCategoryDto: UpdateCategoryDto): Promise<Category> {
+  async update(
+    id: number,
+    updateCategoryDto: UpdateCategoryDto,
+  ): Promise<Category> {
     const category = await this.findById(id);
     if (updateCategoryDto.parent_id) {
       const parent = await this.categoryRepository.findOne({
@@ -174,7 +177,7 @@ export class CategoryService {
       };
     }
 
-    const productIds = paginatedProducts.map(p => p.id);
+    const productIds = paginatedProducts.map((p) => p.id);
     const pricesData = await this.medicineRepository
       .createQueryBuilder('m')
       .select([
@@ -192,13 +195,17 @@ export class CategoryService {
       .where('m.id IN (:...productIds)', { productIds })
       .getRawMany();
 
+    const priceByProductId = new Map(
+      pricesData.map((price) => [Number(price.id), price]),
+    );
+
     // Merge: Combine product info with pricing data
-    const products = paginatedProducts.map(product => ({
+    const products = paginatedProducts.map((product) => ({
       id: product.id,
       name: product.name,
       slug: product.slug,
       image_url: product.image_url,
-      ...pricesData.find(p => p.id === product.id),
+      ...priceByProductId.get(product.id),
     }));
 
     return {
