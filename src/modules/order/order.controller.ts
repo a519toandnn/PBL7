@@ -70,17 +70,35 @@ export class OrderController {
   }
 
   /**
+   * GET /order/admin/:id/details - Admin: Get any order details
+   */
+  @Get('admin/:id/details')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  getAdminOrderDetails(@Param('id', ParseIntPipe) id: number) {
+    return this.orderService.getOrderDetails(id);
+  }
+
+  /**
    * GET /order/:id/details - Get order details with items
    */
   @Get(':id/details')
   @UseGuards(JwtGuard)
   getOrderDetails(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    if (req.user?.role === UserRole.ADMIN) {
+      return this.orderService.getOrderDetails(id);
+    }
+
     return this.orderService.getOrderDetailsForUser(id, req.user.userId);
   }
 
   @Get(':id')
   @UseGuards(JwtGuard)
   findOne(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    if (req.user?.role === UserRole.ADMIN) {
+      return this.orderService.getOrderDetails(id);
+    }
+
     return this.orderService.getOrderDetailsForUser(id, req.user.userId);
   }
 
