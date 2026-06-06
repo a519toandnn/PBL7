@@ -10,7 +10,11 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.enableCors({
-    origin: [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/],
+    origin: [
+      /^http:\/\/localhost:\d+$/, 
+      /^http:\/\/127\.0\.0\.1:\d+$/, 
+      'https://pbl7-medicine.vercel.app/'
+    ],
   });
 //   app.enableCors({
 //   origin: '*', // CHO PHÉP TẤT CẢ - Cách nhanh nhất để qua môn
