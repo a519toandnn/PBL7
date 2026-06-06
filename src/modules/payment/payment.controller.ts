@@ -12,11 +12,14 @@ import {
   Query,
   DefaultValuePipe,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
+import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -48,6 +51,57 @@ export class PaymentController {
   }
 
   // ===== E-Commerce Endpoints =====
+
+  /**
+   * GET /payment/vnpay/ipn - VNPAY server-to-server payment notification
+   * This endpoint is public, but PaymentService verifies VNPAY secure hash.
+   */
+  @Get('vnpay/ipn')
+  async handleVnpayIpn(
+    @Query() query: Record<string, string | string[]>,
+    @Res() res: Response,
+  ) {
+    const result = await this.paymentService.handleVnpayIpn(query);
+    return res.status(200).json(result);
+  }
+
+  /**
+   * POST /payment/order/:orderId/initiate - Create COD payment or VNPAY URL
+   */
+  @Post('order/:orderId/initiate')
+  @UseGuards(JwtGuard)
+  initiatePayment(
+    @Request() req: any,
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Body() initiatePaymentDto: InitiatePaymentDto,
+  ) {
+    const forwardedFor = req.headers?.['x-forwarded-for'];
+    const ipAddress = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    return this.paymentService.initiatePaymentForUser(
+      orderId,
+      req.user.userId,
+      initiatePaymentDto,
+      ipAddress,
+    );
+  }
+
+  /**
+   * GET /payment/order/:orderId/status - FE polls this after VNPAY return
+   */
+  @Get('order/:orderId/status')
+  @UseGuards(JwtGuard)
+  getOrderPaymentStatus(
+    @Request() req: any,
+    @Param('orderId', ParseIntPipe) orderId: number,
+  ) {
+    return this.paymentService.getOrderPaymentStatusForUser(
+      orderId,
+      req.user.userId,
+    );
+  }
 
   /**
    * GET /payment/order/:orderId - Get payment details by order ID
@@ -101,7 +155,7 @@ export class PaymentController {
 
   /**
    * POST /payment/order/:orderId/process - Process payment for order
-   * This will confirm payment and clear user's cart
+   * This will confirm payment for a pending order
    */
   @Post('order/:orderId/process')
   @UseGuards(JwtGuard)

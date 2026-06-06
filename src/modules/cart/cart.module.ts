@@ -7,9 +7,13 @@ import { User } from '../user/entities/user.entity';
 import { CartItem } from '../cartitem/entities/cartitem.entity';
 import { Medicine } from '../medicine/entities/medicine.entity';
 import { MeasureUnit } from '../medicine/entities/measure-unit.entity';
+import { MedicineModule } from '../medicine/medicine.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Cart, User, CartItem, Medicine, MeasureUnit])],
+  imports: [
+    MedicineModule,
+    TypeOrmModule.forFeature([Cart, User, CartItem, Medicine, MeasureUnit]),
+  ],
   controllers: [CartController],
   providers: [CartService],
   exports: [CartService],

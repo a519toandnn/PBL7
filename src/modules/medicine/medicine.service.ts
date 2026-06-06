@@ -448,7 +448,20 @@ export class MedicineService {
     }
 
     try {
-      return await this.semanticSearchService.search(searchText, page, limit);
+      const semanticResult = await this.semanticSearchService.search(
+        searchText,
+        page,
+        limit,
+      );
+      const fallbackEnabled =
+        this.configService.get<string>('SEMANTIC_SEARCH_FALLBACK_ENABLED') !==
+        'false';
+
+      if (semanticResult.data.length === 0 && fallbackEnabled) {
+        return this.searchBySlug(searchText, page, limit);
+      }
+
+      return semanticResult;
     } catch (error) {
       const fallbackEnabled =
         this.configService.get<string>('SEMANTIC_SEARCH_FALLBACK_ENABLED') !==

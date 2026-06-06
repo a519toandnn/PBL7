@@ -8,10 +8,21 @@ import { OrderItem } from '../orderitem/entities/orderitem.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { Medicine } from '../medicine/entities/medicine.entity';
 import { MeasureUnit } from '../medicine/entities/measure-unit.entity';
+import { UserAddress } from '../user/entities/user-address.entity';
+import { OrderShippingAddress } from './entities/order-shipping-address.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, User, OrderItem, Cart, Medicine, MeasureUnit]),
+    TypeOrmModule.forFeature([
+      Order,
+      OrderShippingAddress,
+      User,
+      UserAddress,
+      OrderItem,
+      Cart,
+      Medicine,
+      MeasureUnit,
+    ]),
   ],
   controllers: [OrderController],
   providers: [OrderService],

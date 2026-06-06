@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
+import { ImportPrescriptionCartDto } from './dto/import-prescription-cart.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 
 @Controller('cart')
@@ -34,6 +35,21 @@ export class CartController {
   @UseGuards(JwtGuard)
   addToCart(@Request() req: any, @Body() addToCartDto: AddToCartDto) {
     return this.cartService.addItemToCart(req.user.userId, addToCartDto);
+  }
+
+  /**
+   * POST /cart/import-prescription - Import prescription medicines to current user's cart
+   */
+  @Post('import-prescription')
+  @UseGuards(JwtGuard)
+  importPrescriptionToCart(
+    @Request() req: any,
+    @Body() importPrescriptionCartDto: ImportPrescriptionCartDto,
+  ): Promise<any> {
+    return this.cartService.importPrescriptionItemsToCart(
+      req.user.userId,
+      importPrescriptionCartDto,
+    );
   }
 
   /**

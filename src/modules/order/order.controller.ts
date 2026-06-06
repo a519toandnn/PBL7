@@ -29,7 +29,7 @@ export class OrderController {
 
   @Post()
   @UseGuards(JwtGuard, RolesGuard)
-  @Roles(UserRole.CUSTOMER)
+  @Roles(UserRole.ADMIN)
   create(@Body() createOrderDto: CreateOrderDto) {
     return this.orderService.create(createOrderDto);
   }
@@ -110,6 +110,7 @@ export class OrderController {
     return this.orderService.createOrderFromCart(
       req.user.userId,
       checkoutDto.cart_item_ids,
+      checkoutDto.address_id,
       checkoutDto.note,
     );
   }

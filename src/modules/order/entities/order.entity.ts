@@ -8,10 +8,12 @@ import {
   JoinColumn,
   UpdateDateColumn,
   Index,
+  OneToOne,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 import { OrderItem } from '../../orderitem/entities/orderitem.entity';
 import { Payment } from '../../payment/entities/payment.entity';
+import { OrderShippingAddress } from './order-shipping-address.entity';
 
 export enum OrderStatus {
   PENDING = 'PENDING',
@@ -59,4 +61,13 @@ export class Order {
 
   @OneToMany(() => Payment, (payment) => payment.order)
   payments: Payment[];
+
+  @OneToOne(
+    () => OrderShippingAddress,
+    (shippingAddress) => shippingAddress.order,
+    {
+      cascade: true,
+    },
+  )
+  shipping_address: OrderShippingAddress | null;
 }

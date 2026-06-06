@@ -4,13 +4,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, In } from 'typeorm';
+import { DataSource, EntityManager, Repository, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { Order, OrderStatus } from './entities/order.entity';
 import { User } from '../user/entities/user.entity';
 import { OrderItem } from '../orderitem/entities/orderitem.entity';
 import { Cart } from '../cart/entities/cart.entity';
+import { CartItem } from '../cartitem/entities/cartitem.entity';
 import { Medicine } from '../medicine/entities/medicine.entity';
+import { UserAddress } from '../user/entities/user-address.entity';
+import { OrderShippingAddress } from './entities/order-shipping-address.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
@@ -106,6 +109,7 @@ export class OrderService {
     return this.orderRepository.find({
       relations: [
         'user',
+        'shipping_address',
         'items',
         'items.product',
         'payments',
@@ -125,14 +129,17 @@ export class OrderService {
         note: true,
         created_at: true,
       },
-      relations: { user: true },
+      relations: { user: true, shipping_address: true },
       order: { id: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
     });
 
     return {
-      data,
+      data: data.map((order) => ({
+        ...order,
+        note: this.mapOrderNote(order.note),
+      })),
       pagination: {
         total,
         page,
@@ -147,6 +154,7 @@ export class OrderService {
       where: { id },
       relations: [
         'user',
+        'shipping_address',
         'items',
         'items.product',
         'payments',
@@ -156,6 +164,7 @@ export class OrderService {
     if (!order) {
       throw new NotFoundException(`Order with ID ${id} not found`);
     }
+    order.note = this.mapOrderNote(order.note);
     return order;
   }
 
@@ -164,6 +173,7 @@ export class OrderService {
       where: { id: orderId, user: { id: userId } },
       relations: [
         'user',
+        'shipping_address',
         'items',
         'items.product',
         'payments',
@@ -173,6 +183,7 @@ export class OrderService {
     if (!order) {
       throw new NotFoundException('Order not found');
     }
+    order.note = this.mapOrderNote(order.note);
     return order;
   }
 
@@ -196,6 +207,7 @@ export class OrderService {
   async createOrderFromCart(
     userId: number,
     cartItemIds: number[],
+    addressId?: number,
     note?: string,
   ): Promise<Order> {
     const uniqueCartItemIds = [...new Set(cartItemIds)];
@@ -212,6 +224,12 @@ export class OrderService {
       if (!cart?.user) {
         throw new BadRequestException('User not found');
       }
+
+      const shippingAddressSource = await this.resolveCheckoutAddress(
+        manager,
+        userId,
+        addressId,
+      );
 
       if (!cart.items || cart.items.length === 0) {
         throw new BadRequestException('Cart is empty');
@@ -239,6 +257,18 @@ export class OrderService {
         }),
       );
 
+      await manager.save(
+        OrderShippingAddress,
+        manager.create(OrderShippingAddress, {
+          order,
+          receiver_name: shippingAddressSource.receiver_name,
+          receiver_phone: shippingAddressSource.receiver_phone,
+          address_line: shippingAddressSource.address_line,
+          ward: shippingAddressSource.ward,
+          province: shippingAddressSource.province,
+        }),
+      );
+
       for (const cartItem of selectedItems) {
         const unitPrice = Number(cartItem.unit_price_snapshot ?? 0);
         const lineTotal = unitPrice * cartItem.quantity;
@@ -261,6 +291,7 @@ export class OrderService {
       await manager.save(OrderItem, orderItems);
       order.total_amount = total;
       await manager.save(Order, order);
+      await manager.delete(CartItem, { id: In(uniqueCartItemIds) });
 
       return order.id;
     });
@@ -275,6 +306,7 @@ export class OrderService {
     const orders = await this.orderRepository.find({
       where: { user: { id: userId } },
       relations: [
+        'shipping_address',
         'items',
         'items.product',
         'payments',
@@ -285,6 +317,10 @@ export class OrderService {
 
     if (orders.length === 0) {
       return [];
+    }
+
+    for (const order of orders) {
+      order.note = this.mapOrderNote(order.note);
     }
 
     return orders;
@@ -333,11 +369,50 @@ export class OrderService {
       user_id: order.user?.id ?? null,
       user_name: order.user?.full_name ?? null,
       status: order.status,
-      note: order.note,
+      note: this.mapOrderNote(order.note),
+      shipping_address: order.shipping_address
+        ? {
+            receiver_name: order.shipping_address.receiver_name,
+            receiver_phone: order.shipping_address.receiver_phone,
+            address_line: order.shipping_address.address_line,
+            ward: order.shipping_address.ward,
+            province: order.shipping_address.province,
+          }
+        : null,
       total_amount: order.total_amount,
       created_at: order.created_at,
       items,
     };
+  }
+
+  private mapOrderNote(note?: string | null): string {
+    const normalizedNote = note?.trim();
+    return normalizedNote ? normalizedNote : 'Không có';
+  }
+
+  private async resolveCheckoutAddress(
+    manager: EntityManager,
+    userId: number,
+    addressId?: number,
+  ): Promise<UserAddress> {
+    const addressWhere = addressId
+      ? { id: addressId, user: { id: userId } }
+      : { user: { id: userId }, is_default: true };
+
+    const address = await manager.findOne(UserAddress, {
+      where: addressWhere,
+      relations: ['user'],
+    });
+
+    if (!address) {
+      throw new BadRequestException(
+        addressId
+          ? 'Shipping address not found'
+          : 'Default shipping address not found',
+      );
+    }
+
+    return address;
   }
 
   private generateOrderNo(): string {
