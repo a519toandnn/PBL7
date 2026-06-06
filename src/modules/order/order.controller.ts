@@ -81,7 +81,7 @@ export class OrderController {
   @Get(':id')
   @UseGuards(JwtGuard)
   findOne(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.orderService.findOneForUser(id, req.user.userId);
+    return this.orderService.getOrderDetailsForUser(id, req.user.userId);
   }
 
   @Patch(':id')

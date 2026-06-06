@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  RelationId,
 } from 'typeorm';
 import { Order } from '../../order/entities/order.entity';
 import { Medicine } from '../../medicine/entities/medicine.entity';
@@ -44,4 +45,7 @@ export class OrderItem {
   })
   @JoinColumn({ name: 'product_id' })
   product: Medicine | null;
+
+  @RelationId((item: OrderItem) => item.product)
+  product_id: number | null;
 }

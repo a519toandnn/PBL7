@@ -111,7 +111,6 @@ export class OrderService {
         'user',
         'shipping_address',
         'items',
-        'items.product',
         'payments',
         'payments.payment_method',
       ],
@@ -156,7 +155,6 @@ export class OrderService {
         'user',
         'shipping_address',
         'items',
-        'items.product',
         'payments',
         'payments.payment_method',
       ],
@@ -175,7 +173,6 @@ export class OrderService {
         'user',
         'shipping_address',
         'items',
-        'items.product',
         'payments',
         'payments.payment_method',
       ],
@@ -209,7 +206,7 @@ export class OrderService {
     cartItemIds: number[],
     addressId?: number,
     note?: string,
-  ): Promise<Order> {
+  ): Promise<ReturnType<OrderService['mapOrderDetails']>> {
     const uniqueCartItemIds = [...new Set(cartItemIds)];
     if (uniqueCartItemIds.length !== cartItemIds.length) {
       throw new BadRequestException('Duplicate cart item IDs are not allowed');
@@ -296,19 +293,18 @@ export class OrderService {
       return order.id;
     });
 
-    return this.findOne(orderId);
+    return this.getOrderDetails(orderId);
   }
 
   /**
    * Get all orders for a user
    */
-  async getOrdersByUserId(userId: number): Promise<Order[]> {
+  async getOrdersByUserId(userId: number) {
     const orders = await this.orderRepository.find({
       where: { user: { id: userId } },
       relations: [
         'shipping_address',
         'items',
-        'items.product',
         'payments',
         'payments.payment_method',
       ],
@@ -319,11 +315,7 @@ export class OrderService {
       return [];
     }
 
-    for (const order of orders) {
-      order.note = this.mapOrderNote(order.note);
-    }
-
-    return orders;
+    return orders.map((order) => this.mapOrderSummary(order));
   }
 
   /**
@@ -355,7 +347,7 @@ export class OrderService {
     const items = order.items.map((item) => ({
       order_item_id: item.id,
       cart_item_id: item.cart_item_id,
-      product_id: item.product?.id ?? null,
+      product_id: item.product_id ?? null,
       product_name: item.product_name_snapshot,
       unit_name: item.measure_unit_name_snapshot,
       unit_price: item.unit_price,
@@ -382,7 +374,57 @@ export class OrderService {
       total_amount: order.total_amount,
       created_at: order.created_at,
       items,
+      payments: this.mapOrderPayments(order),
     };
+  }
+
+  private mapOrderSummary(order: Order) {
+    return {
+      order_id: order.id,
+      order_no: order.order_no,
+      status: order.status,
+      note: this.mapOrderNote(order.note),
+      shipping_address: order.shipping_address
+        ? {
+            receiver_name: order.shipping_address.receiver_name,
+            receiver_phone: order.shipping_address.receiver_phone,
+            address_line: order.shipping_address.address_line,
+            ward: order.shipping_address.ward,
+            province: order.shipping_address.province,
+          }
+        : null,
+      total_amount: order.total_amount,
+      created_at: order.created_at,
+      items: order.items.map((item) => ({
+        order_item_id: item.id,
+        cart_item_id: item.cart_item_id,
+        product_id: item.product_id ?? null,
+        product_name: item.product_name_snapshot,
+        unit_name: item.measure_unit_name_snapshot,
+        unit_price: item.unit_price,
+        quantity: item.quantity,
+        subtotal: item.line_total,
+      })),
+      payments: this.mapOrderPayments(order),
+    };
+  }
+
+  private mapOrderPayments(order: Order) {
+    return (order.payments ?? []).map((payment) => ({
+        payment_id: payment.id,
+        amount: payment.amount,
+        status: payment.status,
+        provider_txn_id: payment.provider_txn_id,
+        paid_at: payment.paid_at,
+        created_at: payment.created_at,
+        method: payment.payment_method
+          ? {
+              id: payment.payment_method.id,
+              code: payment.payment_method.code,
+              name: payment.payment_method.name,
+            }
+          : null,
+      }));
   }
 
   private mapOrderNote(note?: string | null): string {

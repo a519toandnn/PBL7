@@ -66,5 +66,8 @@ CODE_REVIEW_TABLE.md
 src/API_DOCUMENTATION.md
 src/ORDER_CHECKOUT_API_PROPOSAL.md
 src/SEMANTIC_MEDICINE_SEARCH_PROPOSAL.md
+src/*.md
+
+database_table_design.docx
 
 backup-before-semantic-search.dump
