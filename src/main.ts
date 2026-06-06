@@ -13,7 +13,7 @@ async function bootstrap() {
     origin: [
       /^http:\/\/localhost:\d+$/, 
       /^http:\/\/127\.0\.0\.1:\d+$/, 
-      'https://pbl7-medicine.vercel.app/'
+      'https://pbl7-medicine.vercel.app'
     ],
   });
 //   app.enableCors({
