@@ -1,5 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AiOutlinePlus, AiOutlineMinus } from 'react-icons/ai';
+import { useHistory } from 'react-router-dom';
+import {
+  ACCEPTED_PRESCRIPTION_IMAGE_TYPES,
+  analyzePrescriptionImage,
+} from '../utils/consultationAiApi';
+import useAuth from '../hooks/useAuth';
+import useOrder from '../hooks/useOrder';
+import { apiFetch, getAuthHeaders } from '../utils/apiClient';
+import { formatCurrency } from '../utils/productsApi';
 
 const ConsultationScreen = () => {
   const [expandedId, setExpandedId] = useState(null);
@@ -192,62 +201,255 @@ const ConsultationScreen = () => {
 export default ConsultationScreen;
 
 function ChatBox() {
-  const [message, setMessage] = useState('');
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+  const acceptedImageInputTypes = ACCEPTED_PRESCRIPTION_IMAGE_TYPES.join(',');
+  const history = useHistory();
+  const { user } = useAuth();
+  const { loadCart } = useOrder();
+
   const [file, setFile] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const apiBase = process.env.REACT_APP_API_BASE || '';
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [aiResult, setAiResult] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [aiError, setAiError] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const send = async (e) => {
-    e && e.preventDefault();
-    if (!message && !file) return;
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
-    const userMsg = { id: Date.now(), who: 'user', text: message, image: file ? URL.createObjectURL(file) : null };
-    setMessages((m) => [...m, userMsg]);
-    setMessage('');
-    setFile(null);
+  const clearPreview = () => {
+    setPreviewUrl('');
+  };
+
+  const handleFileChange = (event) => {
+    const selectedFile = event.target.files?.[0];
+
+    setAiError('');
+    setAiResult(null);
+    setImportResult(null);
+    clearPreview();
+
+    if (!selectedFile) {
+      setFile(null);
+      return;
+    }
+
+    if (!ACCEPTED_PRESCRIPTION_IMAGE_TYPES.includes(selectedFile.type)) {
+      setFile(null);
+      setAiError('Chỉ chấp nhận ảnh JPG, PNG, WEBP, BMP, TIFF hoặc GIF.');
+      return;
+    }
+
+    if (selectedFile.size > MAX_IMAGE_SIZE) {
+      setFile(null);
+      setAiError('Ảnh không được vượt quá 10MB.');
+      return;
+    }
+
+    setFile(selectedFile);
+    setPreviewUrl(URL.createObjectURL(selectedFile));
+  };
+
+  const send = async (event) => {
+    event.preventDefault();
+
+    if (!file) {
+      setAiError('Vui lòng chọn ảnh đơn thuốc trước khi gửi.');
+      return;
+    }
+
+    if (!user?.id) {
+      setAiError('Vui lòng đăng nhập để thêm đơn thuốc vào giỏ hàng.');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token || token === 'undefined' || token === 'null') {
+      setAiError('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại để thêm đơn thuốc vào giỏ hàng.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAiError('');
+    setAiResult(null);
+    setImportResult(null);
 
     try {
-      const fd = new FormData();
-      fd.append('message', userMsg.text || '');
-      if (file) fd.append('image', file, file.name);
-
-      const res = await fetch(`${apiBase}/chat`, {
+      const result = await analyzePrescriptionImage(file);
+      setAiResult(result);
+      const imported = await apiFetch('/cart/import-prescription', {
         method: 'POST',
-        body: fd,
+        headers: getAuthHeaders(),
+        body: JSON.stringify(result),
       });
-      const json = await res.json();
-      const payload = json && json.data ? json.data : json;
-      const botMsg = { id: Date.now() + 1, who: 'bot', text: payload?.reply || 'Đã nhận', image: payload?.imageUrl || null };
-      setMessages((m) => [...m, botMsg]);
+      setImportResult(imported);
+      await loadCart();
     } catch (err) {
-      const errMsg = { id: Date.now() + 2, who: 'bot', text: 'Lỗi kết nối tới server.' };
-      setMessages((m) => [...m, errMsg]);
+      if (err.status === 401) {
+        setAiError('Backend bao Unauthorized. Phiên đăng nhập đã hết hạn hoặc token không hợp lệ, vui lòng đăng nhập lại.');
+        return;
+      }
+
+      setAiError(err.message || 'Không thể xử lý ảnh. Vui lòng thử lại.');
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
   return (
-    <div>
-      <div className="border rounded p-4 h-64 overflow-auto mb-4 bg-gray-50">
-        {messages.length === 0 && <div className="text-gray-500">Chưa có cuộc hội thoại nào. Hãy bắt đầu bằng một câu hỏi.</div>}
-        {messages.map((m) => (
-          <div key={m.id} className={`mb-3 ${m.who === 'user' ? 'text-right' : 'text-left'}`}>
-            <div className={`inline-block p-3 rounded ${m.who === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>
-              <div>{m.text}</div>
-              {m.image && (
-                <img src={m.image} alt="upload" className="mt-2 max-w-xs rounded" />
-              )}
-            </div>
-          </div>
-        ))}
+    <form onSubmit={send} className="space-y-4">
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-5 bg-gray-50">
+        <label className="block text-sm font-semibold text-gray-800 mb-2">
+          Tải ảnh đơn thuốc
+        </label>
+
+        <input
+          type="file"
+          accept={acceptedImageInputTypes}
+          onChange={handleFileChange}
+          disabled={isAnalyzing}
+          className="block w-full text-sm text-gray-700"
+        />
+
+        <p className="mt-2 text-xs text-gray-500">
+          Chấp nhận ảnh JPG, PNG, WEBP, BMP, TIFF, GIF. Dung lượng tối đa 10MB.
+        </p>
       </div>
 
-      <form onSubmit={send} className="flex flex-col gap-2">
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Nhập câu hỏi của bạn..." className="w-full p-3 border rounded" />
-        <div className="flex items-center gap-2">
-          <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0] || null)} />
-          <button type="submit" className="ml-auto bg-blue-600 text-white px-6 py-2 rounded">Gửi</button>
+      {previewUrl && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <p className="mb-3 text-sm font-semibold text-gray-800">Ảnh đã chọn</p>
+          <img
+            src={previewUrl}
+            alt="Đơn thuốc đã tải lên"
+            className="max-h-80 w-full object-contain rounded-md bg-gray-100"
+          />
         </div>
-      </form>
+      )}
+
+      {aiError && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {aiError}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={!file || isAnalyzing}
+          className="rounded-md bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+        >
+          {isAnalyzing ? 'Đang xử lý...' : 'Gửi'}
+        </button>
+      </div>
+
+      {importResult && (
+        <PrescriptionImportResult
+          result={importResult}
+          onViewCart={() => history.push('/orders')}
+        />
+      )}
+
+      {aiResult && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-gray-900">
+              Kết quả AI trả về
+            </h3>
+            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+              JSON đã nhận
+            </span>
+          </div>
+
+          <pre className="max-h-96 overflow-auto rounded-md bg-gray-900 p-4 text-xs leading-6 text-green-100">
+            {JSON.stringify(aiResult, null, 2)}
+          </pre>
+        </div>
+      )}
+    </form>
+  );
+}
+
+function PrescriptionImportResult({ result, onViewCart }) {
+  const matchedItems = Array.isArray(result?.matched_items) ? result.matched_items : [];
+  const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
+  const summary = result?.summary || {};
+
+  return (
+    <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-blue-950">
+            Kết quả thêm đơn thuốc vào giỏ hàng
+          </h3>
+          <p className="mt-1 text-sm text-blue-800">
+            Đã thêm {summary.cart_upsert_count || 0}/{summary.requested_count || 0} đơn thuốc hợp lệ.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onViewCart}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          Xem giỏ hàng
+        </button>
+      </div>
+
+      {matchedItems.length > 0 && (
+        <div className="mt-4 space-y-3">
+          <h4 className="text-sm font-semibold text-blue-950">Đã thêm vào giỏ hàng</h4>
+          {matchedItems.map((item, index) => {
+            const cartItem = item.cart_item || {};
+            return (
+              <div key={`${cartItem.cart_item_id || index}`} className="rounded-md bg-white p-3 text-sm">
+                <div className="font-semibold text-gray-900">
+                  {cartItem.product?.name || item.match?.matched_product_name || 'San pham'}
+                </div>
+                <div className="mt-1 text-gray-600">
+                  Số lượng: {cartItem.quantity || 0}
+                  {cartItem.measure_unit?.name ? ` ${cartItem.measure_unit.name}` : ''}
+                  {' - '}
+                  Đơn giá: {formatCurrency(cartItem.unit_price || 0)}
+                </div>
+                {item.match?.match_type && (
+                  <div className="mt-1 text-xs text-gray-500">
+                    Khớp: {item.match.match_type}
+                    {item.match.score !== undefined ? `, score ${item.match.score}` : ''}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div className="mt-4 space-y-3">
+          <h4 className="text-sm font-semibold text-yellow-900">Cần xem lại</h4>
+          {warnings.map((warning, index) => (
+            <div key={`${warning.type || 'warning'}-${index}`} className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
+              <div className="font-semibold">{warning.type || 'WARNING'}</div>
+              <div className="mt-1">{warning.message || 'Không thể thêm đơn thuốc này vào giỏ hàng.'}</div>
+              {Array.isArray(warning.inputs) && warning.inputs.length > 0 && (
+                <ul className="mt-2 list-disc pl-5 text-xs">
+                  {warning.inputs.map((input, inputIndex) => (
+                    <li key={inputIndex}>
+                      {input.ten_thuoc || 'Không rõ tên thuốc'}
+                      {input.so_luong ? ` - SL ${input.so_luong}` : ''}
+                      {input.don_vi_tinh ? ` ${input.don_vi_tinh}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

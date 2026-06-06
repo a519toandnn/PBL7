@@ -3,6 +3,21 @@ import { AiFillDelete } from 'react-icons/ai';
 import { BsEye } from 'react-icons/bs';
 import swal from 'sweetalert';
 import useAuth from '../hooks/useAuth';
+import { apiFetch, getAuthHeaders, getListData } from '../utils/apiClient';
+
+const formatOrderShippingAddress = (address) => {
+  if (!address) return '(Không có)';
+
+  return [
+    `Người nhận: ${address.receiver_name || '(Không có)'}`,
+    `Số điện thoại: ${address.receiver_phone || '(Không có)'}`,
+    `Địa chỉ: ${[address.address_line, address.ward, address.province].filter(Boolean).join(', ') || '(Không có)'}`,
+  ].join('\n');
+};
+
+const formatOrderNote = (note) => note || 'Khong co';
+
+const getOrderId = (order) => order?.order_id ?? order?.id;
 
 const OrderManagementScreen = () => {
   const { user } = useAuth();
@@ -12,9 +27,6 @@ const OrderManagementScreen = () => {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [loading, setLoading] = useState(false);
 
-  const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:3001';
-  const token = localStorage.getItem('token');
-
   useEffect(() => {
     if (!isAdmin) return;
     loadOrders();
@@ -23,12 +35,10 @@ const OrderManagementScreen = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiBase}/order`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const payload = await apiFetch('/order/admin?page=1&limit=100', {
+        headers: getAuthHeaders(null),
       });
-      const json = await res.json();
-      const payload = json.data || json;
-      setOrders(Array.isArray(payload) ? payload : []);
+      setOrders(getListData(payload));
     } catch (err) {
       console.error('Error loading orders:', err);
       setOrders([]);
@@ -66,21 +76,15 @@ const OrderManagementScreen = () => {
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
-      const res = await fetch(`${apiBase}/order/${orderId}`, {
+      const updated = await apiFetch(`/order/${orderId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus }),
       });
-      const json = await res.json();
-      if (!res.ok) {
-        swal('Error', json.message || 'Update failed', 'error');
-        return;
-      }
-      const updated = json.data || json;
-      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      const updatedOrderId = getOrderId(updated);
+      setOrders((prev) =>
+        prev.map((o) => (getOrderId(o) === updatedOrderId ? updated : o))
+      );
       swal('Success', 'Order status updated', 'success');
     } catch (err) {
       swal('Error', 'Network error while updating order', 'error');
@@ -97,16 +101,11 @@ const OrderManagementScreen = () => {
     }).then(async (willDelete) => {
       if (!willDelete) return;
       try {
-        const res = await fetch(`${apiBase}/order/${orderId}`, {
+        await apiFetch(`/order/${orderId}`, {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: getAuthHeaders(null),
         });
-        const json = await res.json();
-        if (!res.ok) {
-          swal('Error', json.message || 'Delete failed', 'error');
-          return;
-        }
-        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+        setOrders((prev) => prev.filter((o) => getOrderId(o) !== orderId));
         swal('Success', 'Order deleted successfully', 'success');
       } catch (err) {
         swal('Error', 'Network error while deleting order', 'error');
@@ -116,25 +115,31 @@ const OrderManagementScreen = () => {
 
   const viewOrderDetails = async (order) => {
     try {
-      const res = await fetch(`${apiBase}/order/${order.id}/details`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const orderId = getOrderId(order);
+      const payload = await apiFetch(`/order/admin/${orderId}/details`, {
+        headers: getAuthHeaders(null),
       });
-      const json = await res.json();
-      const payload = json.data || json;
 
       const items = Array.isArray(payload?.items) ? payload.items : [];
       const itemsList = items
-        .map((i) => `${i.product_name} x${i.quantity} (${Number(i.unit_price).toLocaleString()} đ)`)
+        .map((i) => `${i.product_name || i.product_name_snapshot || '(Không có)'} x${i.quantity} (${Number(i.unit_price || 0).toLocaleString()} đ)`)
         .join('\n');
+
+      const orderDetailText = [
+        `Khách hàng: ${payload?.user_name || order.user?.full_name || '(Không rõ)'}`,
+        `Trạng thái: ${payload?.status || order.status}`,
+        `Tổng: ${Number(payload?.total_amount || order.total_amount || 0).toLocaleString()} đ`,
+        '',
+        `Địa chỉ giao hàng:\n${formatOrderShippingAddress(payload?.shipping_address)}`,
+        '',
+        `Sản phẩm:\n${itemsList || '(Không có)'}`,
+        '',
+        `Ghi chú: ${formatOrderNote(payload?.note)}`,
+      ].join('\n');
 
       swal({
         title: payload?.order_no || order.order_no,
-        text:
-          `Khách hàng: ${payload?.user_name || order.user?.full_name || '(không rõ)'}\n` +
-          `Trạng thái: ${payload?.status || order.status}\n` +
-          `Tổng: ${Number(payload?.total_amount || order.total_amount || 0).toLocaleString()} đ\n\n` +
-          `Sản phẩm:\n${itemsList || '(không có)'}\n\n` +
-          `Ghi chú: ${payload?.note || '(không có)'}`,
+        text: orderDetailText,
         icon: 'info',
       });
     } catch (err) {
@@ -198,8 +203,11 @@ const OrderManagementScreen = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition">
+                {filteredOrders.map((order) => {
+                  const orderId = getOrderId(order);
+
+                  return (
+                  <tr key={orderId} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4 font-semibold text-gray-900">{order.order_no}</td>
                     <td className="px-6 py-4 text-gray-600">{order.user?.full_name || '(N/A)'}</td>
                     <td className="px-6 py-4 text-gray-600">
@@ -211,7 +219,7 @@ const OrderManagementScreen = () => {
                     <td className="px-6 py-4">
                       <select
                         value={order.status}
-                        onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                        onChange={(e) => updateOrderStatus(orderId, e.target.value)}
                         className={`px-3 py-1 rounded-full text-sm font-semibold border-0 cursor-pointer ${getStatusColor(
                           order.status,
                         )}`}
@@ -230,7 +238,7 @@ const OrderManagementScreen = () => {
                         <BsEye />
                       </button>
                       <button
-                        onClick={() => deleteOrder(order.id)}
+                        onClick={() => deleteOrder(orderId)}
                         className="text-red-600 hover:text-red-800 text-xl"
                         title="Delete"
                       >
@@ -238,7 +246,8 @@ const OrderManagementScreen = () => {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -57,23 +57,10 @@
 // ⭐ CHANGE — chỉ lấy 200 sp thay vì 1000 (frontend chỉ hiển thị batch)
 const DEFAULT_API_URL = 'http://localhost:3001';
 const PRODUCTS_LIMIT = 200; // ⭐ NEW
-export const PRODUCTS_PAGE_SIZE = 21;
 
 export const getApiBaseUrl = () => {
   const envUrl = process.env.REACT_APP_API_URL?.trim();
   return envUrl || DEFAULT_API_URL;
-};
-
-export const formatCurrency = (value) => {
-  const numberValue = Number(value || 0);
-  return `${numberValue.toLocaleString('vi-VN')}đ`;
-};
-
-export const CONSULTATION_PRICE_TEXT = 'Cần tư vấn từ dược sĩ';
-
-export const needsPriceConsultation = (value) => {
-  const numberValue = Number(value);
-  return !Number.isFinite(numberValue) || numberValue <= 0;
 };
 
 export const mapMedicineToProduct = (medicine) => ({
@@ -82,7 +69,6 @@ export const mapMedicineToProduct = (medicine) => ({
   image: medicine.image_url || '/assets/products/product1.jpg',
   description: medicine.description || '',
   price: medicine.price ?? 0,
-  measureUnitName: medicine.measure_unit_name || medicine.measure_name || '',
   rating: medicine.rating ?? 4,
   reviews: medicine.reviews ?? 0,
   category: medicine.category || medicine.product_type || '',
@@ -90,135 +76,6 @@ export const mapMedicineToProduct = (medicine) => ({
   usage: medicine.usage || '',
   slug: medicine.slug,
 });
-
-const normalizeMedicineListResponse = (json) => {
-  const responseData = json?.data;
-
-  if (Array.isArray(responseData)) {
-    return {
-      medicines: responseData,
-      pagination: json?.pagination || {
-        total: responseData.length,
-        page: 1,
-        limit: responseData.length,
-        totalPages: 1,
-      },
-    };
-  }
-
-  return {
-    medicines: Array.isArray(responseData?.data) ? responseData.data : [],
-    pagination: responseData?.pagination || json?.pagination || {
-      total: 0,
-      page: 1,
-      limit: PRODUCTS_PAGE_SIZE,
-      totalPages: 1,
-    },
-  };
-};
-
-export const fetchMedicinePage = async ({ page = 1, limit = PRODUCTS_PAGE_SIZE, signal } = {}) => {
-  const response = await fetch(
-    `${getApiBaseUrl()}/medicines?page=${page}&limit=${limit}`,
-    { signal }
-  );
-
-  if (!response.ok) {
-    throw new Error(`API error ${response.status}`);
-  }
-
-  const json = await response.json();
-  const { medicines, pagination } = normalizeMedicineListResponse(json);
-
-  return {
-    products: medicines.map(mapMedicineToProduct),
-    pagination,
-  };
-};
-
-export const fetchCategoryProductPage = async ({
-  slug,
-  page = 1,
-  limit = PRODUCTS_PAGE_SIZE,
-  signal,
-} = {}) => {
-  const response = await fetch(
-    `${getApiBaseUrl()}/category/${slug}/products?page=${page}&limit=${limit}`,
-    { signal }
-  );
-
-  if (!response.ok) {
-    throw new Error(`API error ${response.status}`);
-  }
-
-  const json = await response.json();
-  const { medicines, pagination } = normalizeMedicineListResponse(json);
-
-  return {
-    products: medicines.map(mapMedicineToProduct),
-    pagination,
-  };
-};
-
-export const searchMedicinePage = async ({
-  q,
-  page = 1,
-  limit = 5,
-  signal,
-} = {}) => {
-  const query = String(q || '').trim();
-
-  if (!query) {
-    return {
-      products: [],
-      pagination: {
-        total: 0,
-        page: 1,
-        limit,
-        totalPages: 1,
-      },
-    };
-  }
-
-  const response = await fetch(
-    `${getApiBaseUrl()}/medicines/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
-    { signal }
-  );
-
-  if (!response.ok) {
-    throw new Error(`API error ${response.status}`);
-  }
-
-  const json = await response.json();
-  const payload = json?.data || json;
-  const medicines = Array.isArray(payload?.data)
-    ? payload.data
-    : Array.isArray(payload)
-      ? payload
-      : [];
-
-  return {
-    products: medicines.map(mapMedicineToProduct),
-    pagination: payload?.pagination || json?.pagination || {
-      total: medicines.length,
-      page,
-      limit,
-      totalPages: 1,
-    },
-  };
-};
-
-export const fetchCategories = async ({ signal } = {}) => {
-  const response = await fetch(`${getApiBaseUrl()}/category`, { signal });
-
-  if (!response.ok) {
-    throw new Error(`API error ${response.status}`);
-  }
-
-  const json = await response.json();
-  const categories = json?.data || json;
-  return Array.isArray(categories) ? categories : [];
-};
 
 export const fetchMedicinesAsProducts = async () => {
 
@@ -256,10 +113,8 @@ export const fetchMedicinesAsProducts = async () => {
 
     console.log(`✅ Loaded ${medicines.length} medicines`);
 
-    // ⭐ NEW — map, sort by id ASC, then return
-    return medicines
-      .map(mapMedicineToProduct)
-      .sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+    // ⭐ NEW — map và return
+    return medicines.map(mapMedicineToProduct);
 
   } catch (error) {
 

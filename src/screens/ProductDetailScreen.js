@@ -1,113 +1,217 @@
-import React, { useState } from 'react';
-import { AiFillStar, AiOutlineStar } from 'react-icons/ai';
-import { BsArrowLeft, BsCart2 } from 'react-icons/bs';
-import Rating from 'react-rating';
-import Fade from 'react-reveal/Fade';
-import { Link, useParams, useHistory } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BsArrowLeft } from 'react-icons/bs';
+import { Link, useHistory, useParams } from 'react-router-dom';
 import swal from 'sweetalert';
-import useFetch from '../hooks/useFetch';
+import MedicineInfoTabs from '../components/products/detail/MedicineInfoTabs';
+import ProductHero from '../components/products/detail/ProductHero';
+import ProductMetaPanel from '../components/products/detail/ProductMetaPanel';
 import useOrder from '../hooks/useOrder';
 import useAuth from '../hooks/useAuth';
-
+import {
+    CONSULTATION_PRICE_TEXT,
+    formatCurrency,
+    getApiBaseUrl,
+    needsPriceConsultation,
+} from '../utils/productsApi';
 
 const ProductDetailScreen = () => {
-    const [disabled, setDisabled] = useState(false);
-    const [quantity, setQuantity] = useState(1);
-    const { title } = useParams();
-    const [data] = useFetch('products');
-    const { handleCart, orders } = useOrder();
-    const { user } = useAuth();
+    const { title: slug } = useParams();
     const history = useHistory();
+    const { handleCart } = useOrder();
+    const { user } = useAuth();
 
-    // Handle Add to Cart with login check
-    const handleAddToCart = (product) => {
-        if (!user || !user.id) {
+    const [detail, setDetail] = useState(null);
+    const [detailLoading, setDetailLoading] = useState(true);
+    const [detailError, setDetailError] = useState('');
+    const [selectedUnitId, setSelectedUnitId] = useState(null);
+    const [quantity, setQuantity] = useState(1);
+
+    useEffect(() => {
+        if (!slug) return;
+
+        let cancelled = false;
+
+        const loadDetail = async () => {
+            setDetailLoading(true);
+            setDetailError('');
+            setSelectedUnitId(null);
+            setQuantity(1);
+
+            try {
+                const res = await fetch(`${getApiBaseUrl()}/medicines/${slug}`);
+                const json = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(json.message || 'Không tải được chi tiết thuốc');
+                }
+
+                if (!cancelled) {
+                    setDetail(json.data || json);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setDetailError(err.message || 'Không tải được chi tiết thuốc');
+                    setDetail(null);
+                }
+            } finally {
+                if (!cancelled) {
+                    setDetailLoading(false);
+                }
+            }
+        };
+
+        loadDetail();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [slug]);
+
+    const prices = useMemo(() => {
+        return Array.isArray(detail?.prices) ? detail.prices : [];
+    }, [detail]);
+
+    const defaultUnit = useMemo(() => {
+        return prices.find((item) => item.is_sell_default) || prices[0] || null;
+    }, [prices]);
+
+    useEffect(() => {
+        if (!defaultUnit) return;
+
+        setSelectedUnitId((current) => {
+            const currentStillExists = prices.some((item) => item.measure_id === current);
+            return currentStillExists ? current : defaultUnit.measure_id;
+        });
+    }, [defaultUnit, prices]);
+
+    const selectedUnit = useMemo(() => {
+        return prices.find((item) => item.measure_id === selectedUnitId) || defaultUnit;
+    }, [prices, selectedUnitId, defaultUnit]);
+
+    const displayProduct = useMemo(() => {
+        const primaryCategory =
+            detail?.categories?.find((item) => item.is_primary) ||
+            detail?.categories?.[0] ||
+            null;
+
+        return {
+            id: detail?.id,
+            name: detail?.name || 'Sản phẩm',
+            slug: detail?.slug || slug,
+            productType: detail?.product_type || '',
+            description: detail?.description || '',
+            image: detail?.image_url || '/assets/products/product1.jpg',
+            isActive: Boolean(detail?.is_active),
+            updatedAt: detail?.updated_at,
+            price: selectedUnit?.price || 0,
+            unitName: selectedUnit?.measure_name || '',
+            prices,
+            categories: detail?.categories || [],
+            primaryCategory,
+            medicalInfo: detail?.medical_info || {},
+        };
+    }, [detail, prices, selectedUnit, slug]);
+
+    const canShop = Boolean(user?.id || user?.email);
+
+    const handleAddToCart = async () => {
+        if (needsPriceConsultation(displayProduct.price)) {
+            swal("Thông báo", "Sản phẩm này cần tư vấn từ dược sĩ trước khi mua", "info");
+            return;
+        }
+
+        if (!canShop) {
             swal("Login Required", "Please sign in to add items to your cart", "info");
             history.push('/signin');
             return;
         }
 
-        handleCart(product, quantity);
-        setDisabled(true);
-        setQuantity(1);
-        swal("Wow!!!", "Your order has added to the cart", "success");
+        try {
+            await handleCart(
+                {
+                    id: displayProduct.id,
+                    title: displayProduct.name,
+                    image: displayProduct.image,
+                    price: displayProduct.price,
+                    slug: displayProduct.slug,
+                    unitName: displayProduct.unitName,
+                    measureId: selectedUnit?.measure_id,
+                },
+                quantity,
+            );
+
+            setQuantity(1);
+            swal("Success", "Sản phẩm đã được thêm vào giỏ hàng", "success");
+        } catch (error) {
+            swal("Error", error.message || "Không thêm được sản phẩm vào giỏ hàng", "error");
+        }
     };
 
-    return (
-        <section className="max-w-screen-xl py-24 mx-auto px-6  overflow-y-hidden">
-            <div className="flex flex-col justify-center items-center pt-24">
-                {data.filter(item => item.title === title).map(product => (
-                    <>
-                        <div key={product.id} className="p-6 box-border grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-10">
-                            {/* image  */}
-                            <div>
-                                <Fade left>
-                                    <img className="w-full h-full mx-auto object-cover rounded-lg" src={product.image} alt="coverimg" />
-                                </Fade>
-                            </div>
-                            {/* details  */}
-                            <div className="flex flex-col justify-center h-full">
-                                <Fade left>
-                                    <div className="border-b border-gray-400 pb-4">
-                                        <h1 className="poppins text-gray-800 text-3xl">{product.title}</h1>
-                                        {/* rating and reviews  */}
-                                        <div className="flex items-center-space-x-3 mt-4">
-                                            <Rating
-                                                emptySymbol={<AiOutlineStar className="text-gray-600 text-xl" />}
-                                                fullSymbol={<AiFillStar className="text-yellow-400 text-xl" />}
-                                                initialRating={`${product.rating}`}
-                                                readonly
-                                            />
-                                            <span className="text-gray-600">({product.reviews} reviews)</span>
-                                        </div>
-                                        {/* description  */}
-                                        <p className=" text-gray-400 my-4">{product.description}{product.description}{product.description}{product.description}</p>
-                                    </div>
-                                    {/* Quantity Section */}
-                                    <div className="py-4 border-b border-gray-400">
-                                        <p className="text-gray-700 font-semibold mb-2">Quantity:</p>
-                                        <div className="flex items-center space-x-3">
-                                            <button
-                                                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                                                className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 font-bold"
-                                            >
-                                                −
-                                            </button>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={quantity}
-                                                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                                                className="w-20 text-center border border-gray-300 rounded py-2"
-                                            />
-                                            <button
-                                                onClick={() => setQuantity(quantity + 1)}
-                                                className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 font-bold"
-                                            >
-                                                +
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between py-6">
-                                        <h2 className="text-3xl text-black font-bold poppins">${product.price}</h2>
-                                        <button disabled={disabled} className={` ${disabled} && "opacity-30" w-36 btn-primary py-3 px-4 poppins text-sm flex items-center space-x-3 text-center justify-center`}
-                                            onClick={() => handleAddToCart(product)}
-
-                                        >
-                                            <BsCart2 />
-                                            <span>{orders.filter(item => item.id === product.id) || disabled ? "Added" : "Add To Cart"}</span>
-
-                                        </button>
-                                    </div>
-                                </Fade>
-                            </div>
-                            <Link to="/products" className="pt-4 text-blue-500 text-sm hover:underline flex items-center space-x-3"><BsArrowLeft /> <span>Back</span></Link>
+    if (detailLoading) {
+        return (
+            <main className="max-w-screen-xl pt-8 pb-20 mx-auto px-6">
+                <div className="bg-white border border-gray-100 rounded-lg p-8">
+                    <div className="animate-pulse grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="h-80 bg-gray-100 rounded-lg" />
+                        <div className="space-y-4">
+                            <div className="h-8 bg-gray-100 rounded w-3/4" />
+                            <div className="h-4 bg-gray-100 rounded w-full" />
+                            <div className="h-4 bg-gray-100 rounded w-2/3" />
+                            <div className="h-12 bg-gray-100 rounded w-1/2" />
                         </div>
-                    </>
-                ))}
-            </div>
-        </section>
-    )
-}
+                    </div>
+                </div>
+            </main>
+        );
+    }
 
-export default ProductDetailScreen
+    if (detailError || !detail) {
+        return (
+            <main className="max-w-screen-xl pt-8 pb-20 mx-auto px-6">
+                <div className="bg-white border border-gray-100 rounded-lg p-8 text-center">
+                    <h1 className="text-2xl font-bold text-gray-900">Không tìm thấy sản phẩm</h1>
+                    <p className="mt-3 text-gray-500">
+                        {detailError || 'Thông tin thuốc đang không khả dụng.'}
+                    </p>
+                    <Link to="/products" className="inline-flex items-center gap-2 mt-4 text-blue-600">
+                        <BsArrowLeft />
+                        Quay lại danh sách thuốc
+                    </Link>
+                </div>
+            </main>
+        );
+    }
+
+    return (
+        <main className="max-w-screen-xl pt-8 pb-20 mx-auto px-6">
+            <Link to="/products" className="inline-flex items-center gap-2 mb-6 text-blue-600">
+                <BsArrowLeft />
+                Quay lại
+            </Link>
+
+            <ProductHero
+                product={displayProduct}
+                selectedUnit={selectedUnit}
+                onSelectUnit={setSelectedUnitId}
+                quantity={quantity}
+                onQuantityChange={setQuantity}
+                onAddToCart={handleAddToCart}
+                disabled={false}
+                canShop={canShop}
+                needsPriceConsultation={needsPriceConsultation}
+                consultationText={CONSULTATION_PRICE_TEXT}
+                formatCurrency={formatCurrency}
+            />
+
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <ProductMetaPanel product={displayProduct} />
+                <MedicineInfoTabs
+                    medicalInfo={displayProduct.medicalInfo}
+                    productName={displayProduct.name}
+                />
+            </div>
+        </main>
+    );
+};
+
+export default ProductDetailScreen;

@@ -1,340 +1,378 @@
-// import React, { useState, useEffect } from 'react';
-// import Bounce from 'react-reveal/Bounce';
-// import Heading from '../components/Heading';
-// import Product from '../components/products/Product';
-// import useFetch from '../hooks/useFetch';
-// import { BsSearch } from 'react-icons/bs';
-
-// const ProductsScreen = () => {
-//     const [data, loading, error] = useFetch('products');
-//     const [filteredData, setFilteredData] = useState([]);
-//     const [searchTerm, setSearchTerm] = useState('');
-//     const [localSearch, setLocalSearch] = useState('');
-
-//     // Đọc localStorage khi component mounted hoặc khi navigate tới trang này
-//     useEffect(() => {
-//         const term = localStorage.getItem('searchTerm');
-//         if (term) {
-//             setSearchTerm(term);
-//             setLocalSearch(term);
-//         }
-//     }, []);
-
-//     // Filter data khi data hoặc searchTerm thay đổi
-//     useEffect(() => {
-//         if (searchTerm.trim()) {
-//             // Nếu có searchTerm, lọc dữ liệu
-//             const filtered = data.filter(product =>
-//                 product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-//                 product.description.toLowerCase().includes(searchTerm.toLowerCase())
-//             );
-//             setFilteredData(filtered);
-//         } else {
-//             // Nếu không có searchTerm, hiển thị tất cả
-//             setFilteredData(data);
-//         }
-//     }, [data, searchTerm]);
-
-//     // Xử lý thay đổi tìm kiếm trực tiếp ở trang products
-//     const handleLocalSearchChange = (value) => {
-//         setLocalSearch(value);
-        
-//         if (!value.trim()) {
-//             // Nếu xóa hết → hiển thị tất cả sản phẩm
-//             setSearchTerm('');
-//             localStorage.removeItem('searchTerm');
-//             setFilteredData(data);
-//         } else {
-//             // Tìm kiếm với từ khóa mới
-//             setSearchTerm(value);
-//             const filtered = data.filter(product =>
-//                 product.title.toLowerCase().includes(value.toLowerCase()) ||
-//                 product.description.toLowerCase().includes(value.toLowerCase())
-//             );
-//             setFilteredData(filtered);
-//         }
-//     }
-
-//     // Xóa localStorage khi rời khỏi trang
-//     const handleClearSearch = () => {
-//         localStorage.removeItem('searchTerm');
-//         setSearchTerm('');
-//         setLocalSearch('');
-//         setFilteredData(data);
-//     }
-
-//     const productsToDisplay = searchTerm ? filteredData : data;
-
-//     return (
-//         <section className="max-w-screen-xl py-24 mx-auto px-6">
-//             {/* heading  */}
-//             <Heading title={searchTerm ? `Tìm kiếm: "${searchTerm}"` : "Product"} />
-            
-//             {/* Search Bar - Luôn hiển thị */}
-//             <div className="mb-8 flex items-center bg-white border-2 border-blue-600 rounded-lg px-3 py-2 shadow-md">
-//                 <BsSearch className="text-blue-600 mr-3 w-5 h-5" />
-//                 <input 
-//                     type="text"
-//                     value={localSearch}
-//                     onChange={(e) => handleLocalSearchChange(e.target.value)}
-//                     placeholder="Tìm kiếm sản phẩm..."
-//                     className="flex-grow h-10 px-2 outline-none text-gray-700 text-lg"
-//                 />
-//                 {localSearch && (
-//                     <button 
-//                         onClick={() => handleLocalSearchChange('')}
-//                         className="ml-2 text-gray-500 hover:text-red-600 font-bold text-xl flex items-center justify-center w-8 h-8 rounded"
-//                         aria-label="Clear search"
-//                     >
-//                         ✕
-//                     </button>
-//                 )}
-//             </div>
-            
-//             {/* Search Bar - Chỉ hiển thị khi có searchTerm (deprecated, giữ để compatibility) */}
-//             {searchTerm && !localSearch && (
-//                 <div className="mb-8 flex items-center bg-white border-2 border-blue-600 rounded-lg px-3 py-2 shadow-md">
-//                     <BsSearch className="text-blue-600 mr-3 w-5 h-5" />
-//                     <input 
-//                         type="text"
-//                         value={localSearch}
-//                         onChange={(e) => handleLocalSearchChange(e.target.value)}
-//                         placeholder="Tìm kiếm sản phẩm..."
-//                         className="flex-grow h-10 px-2 outline-none text-gray-700 text-lg"
-//                     />
-//                     {localSearch && (
-//                         <button 
-//                             onClick={() => handleLocalSearchChange('')}
-//                             className="ml-2 text-gray-500 hover:text-red-600 font-bold text-xl flex items-center justify-center w-8 h-8 rounded"
-//                             aria-label="Clear search"
-//                         >
-//                             ✕
-//                         </button>
-//                     )}
-//                 </div>
-//             )}
-            
-//             {/* Loading State */}
-//             {loading && (
-//                 <div className="text-center py-12">
-//                     <div className="inline-block animate-spin">
-//                         <div className="text-6xl mb-4">⏳</div>
-//                     </div>
-//                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Đang tải sản phẩm...</h2>
-//                     <p className="text-gray-600">Vui lòng chờ</p>
-//                 </div>
-//             )}
-            
-//             {/* Error State */}
-//             {error && !loading && (
-//                 <div className="text-center py-12">
-//                     <div className="text-6xl mb-4">⚠️</div>
-//                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Lỗi tải sản phẩm</h2>
-//                     <p className="text-gray-600 mt-2">{error}</p>
-//                     <button 
-//                         onClick={() => window.location.reload()}
-//                         className="mt-6 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition"
-//                     >
-//                         Tải lại trang
-//                     </button>
-//                 </div>
-//             )}
-            
-//             {/* Products Display */}
-//             {!loading && !error && productsToDisplay.length === 0 ? (
-//                 <div className="text-center py-12">
-//                     <div className="text-6xl mb-4">🔍</div>
-//                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Không tìm thấy sản phẩm</h2>
-//                     {searchTerm && <p className="text-gray-600 mt-2">
-// Không tìm thấy sản phẩm với từ khóa "{searchTerm}"</p>}
-//                     {searchTerm && (
-//                         <button 
-//                             onClick={handleClearSearch}
-//                             className="mt-6 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition"
-//                         >
-//                             Xóa tìm kiếm
-//                         </button>
-//                     )}
-//                 </div>
-//             ) : (
-//                 <>
-//                     {searchTerm && <p className="text-gray-600 mb-4">Tìm thấy {productsToDisplay.length} sản phẩm</p>}
-//                     {/* products  */}
-//                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 py-6">
-//                         {productsToDisplay.map(product => (
-//                             <Bounce left key={product.id}>
-//                                 <Product {...product} />
-//                             </Bounce>
-//                         ))}
-//                     </div>
-//                 </>
-//             )}
-//         </section>
-//     )
-// }
-
-// export default ProductsScreen
-import React, { useState, useEffect } from 'react';
-import Bounce from 'react-reveal/Bounce';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BsChevronDown, BsChevronRight, BsSearch } from 'react-icons/bs';
 import Heading from '../components/Heading';
 import Product from '../components/products/Product';
-import useFetch from '../hooks/useFetch';
-import { BsSearch } from 'react-icons/bs';
+import {
+    fetchCategories,
+    fetchCategoryProductPage,
+    fetchMedicinePage,
+    PRODUCTS_PAGE_SIZE,
+    searchMedicinePage,
+} from '../utils/productsApi';
+
+const flattenCategoryChildren = (categories, level = 0) => {
+    return categories.reduce((items, category) => {
+        const current = { ...category, level };
+        const children = Array.isArray(category.children)
+            ? flattenCategoryChildren(category.children, level + 1)
+            : [];
+
+        return [...items, current, ...children];
+    }, []);
+};
+
+const buildCategoryGroups = (categories) => {
+    const preferredSlugs = ['thuoc', 'thuc-pham-chuc-nang'];
+    const preferredGroups = preferredSlugs
+        .map((slug) => categories.find((category) => category.slug === slug))
+        .filter(Boolean);
+    const otherGroups = categories.filter((category) => !preferredSlugs.includes(category.slug));
+
+    return [...preferredGroups, ...otherGroups].map((group) => ({
+        ...group,
+        items: flattenCategoryChildren(group.children || []),
+    }));
+};
 
 const ProductsScreen = () => {
-
-    const [data, loading, error] = useFetch('products');
-
-    const [filteredData, setFilteredData] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [pagination, setPagination] = useState({
+        total: 0,
+        page: 1,
+        limit: PRODUCTS_PAGE_SIZE,
+        totalPages: 1,
+    });
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [categoriesLoading, setCategoriesLoading] = useState(false);
+    const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [localSearch, setLocalSearch] = useState('');
+    const [openGroups, setOpenGroups] = useState({
+        thuoc: true,
+        'thuc-pham-chuc-nang': true,
+    });
 
-    // ⭐ NEW — load theo batch (giúp load 100 sp trong ~1s)
-    const ITEMS_PER_BATCH = 30;
-    const [visibleCount, setVisibleCount] = useState(ITEMS_PER_BATCH);
+    const categoryGroups = useMemo(() => buildCategoryGroups(categories), [categories]);
 
-    // đọc localStorage
     useEffect(() => {
-        const term = localStorage.getItem('searchTerm');
-        if (term) {
-            setSearchTerm(term);
-            setLocalSearch(term);
-        }
+        const term = localStorage.getItem('searchTerm') || '';
+        setSearchTerm(term);
+        setLocalSearch(term);
     }, []);
 
-    // filter data
     useEffect(() => {
-        if (searchTerm.trim()) {
-            const filtered = data.filter(product =>
-                product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                product.description.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            setFilteredData(filtered);
-        } else {
-            setFilteredData(data);
-        }
-    }, [data, searchTerm]);
+        const controller = new AbortController();
 
-    // ⭐ NEW — reset batch khi search
+        const loadCategories = async () => {
+            setCategoriesLoading(true);
+
+            try {
+                const data = await fetchCategories({ signal: controller.signal });
+                setCategories(data);
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    setCategories([]);
+                }
+            } finally {
+                setCategoriesLoading(false);
+            }
+        };
+
+        loadCategories();
+
+        return () => controller.abort();
+    }, []);
+
     useEffect(() => {
-        setVisibleCount(ITEMS_PER_BATCH);
-    }, [searchTerm]);
+        const controller = new AbortController();
+        const keyword = searchTerm.trim();
+
+        const loadProducts = async () => {
+            setLoading(true);
+            setError('');
+
+            try {
+                const payload = keyword
+                    ? await searchMedicinePage({
+                        q: keyword,
+                        page,
+                        limit: 5,
+                        signal: controller.signal,
+                    })
+                    : selectedCategory
+                    ? await fetchCategoryProductPage({
+                        slug: selectedCategory.slug,
+                        page,
+                        limit: PRODUCTS_PAGE_SIZE,
+                        signal: controller.signal,
+                    })
+                    : await fetchMedicinePage({
+                        page,
+                        limit: PRODUCTS_PAGE_SIZE,
+                        signal: controller.signal,
+                    });
+
+                setProducts(payload.products);
+                setPagination(payload.pagination);
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    setProducts([]);
+                    setError(err.message || 'Không tải được sản phẩm');
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const timer = setTimeout(loadProducts, keyword ? 300 : 0);
+
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [page, selectedCategory, searchTerm]);
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [page, selectedCategory]);
 
     const handleLocalSearchChange = (value) => {
         setLocalSearch(value);
+        setPage(1);
 
         if (!value.trim()) {
             setSearchTerm('');
             localStorage.removeItem('searchTerm');
-            setFilteredData(data);
-        } else {
-            setSearchTerm(value);
-            const filtered = data.filter(product =>
-                product.title.toLowerCase().includes(value.toLowerCase()) ||
-                product.description.toLowerCase().includes(value.toLowerCase())
-            );
-            setFilteredData(filtered);
+            return;
         }
-    }
+
+        setSearchTerm(value);
+        localStorage.setItem('searchTerm', value);
+    };
 
     const handleClearSearch = () => {
         localStorage.removeItem('searchTerm');
         setSearchTerm('');
         setLocalSearch('');
-        setFilteredData(data);
-    }
+        setPage(1);
+    };
 
-    const productsToDisplay = searchTerm ? filteredData : data;
+    const handleSelectCategory = (category) => {
+        setPage(1);
+        setSelectedCategory((current) => {
+            return current?.slug === category.slug ? null : category;
+        });
+    };
 
-    // ⭐ NEW — chỉ render 1 phần sản phẩm
-    const visibleProducts = productsToDisplay.slice(0, visibleCount);
+    const toggleGroup = (slug) => {
+        setOpenGroups((current) => ({
+            ...current,
+            [slug]: current[slug] === false,
+        }));
+    };
+
+    const totalPages = Math.max(1, Number(pagination.totalPages || 1));
+    const currentPage = Math.min(Number(pagination.page || page), totalPages);
+    const pageNumbers = useMemo(() => {
+        const start = Math.max(1, currentPage - 2);
+        const end = Math.min(totalPages, start + 4);
+        const adjustedStart = Math.max(1, end - 4);
+
+        return Array.from(
+            { length: end - adjustedStart + 1 },
+            (_, index) => adjustedStart + index
+        );
+    }, [currentPage, totalPages]);
+
+    const heading = selectedCategory ? `Danh mục: ${selectedCategory.name}` : 'Product';
 
     return (
-        <section className="max-w-screen-xl py-24 mx-auto px-6">
+        <section className="max-w-screen-xl pt-8 pb-24 mx-auto px-6">
+            <Heading title={searchTerm ? `Tìm kiếm: "${searchTerm}"` : heading} />
 
-            <Heading title={searchTerm ? `Tìm kiếm: "${searchTerm}"` : "Product"} />
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <aside className="lg:col-span-1">
+                    <div className="bg-white border border-gray-100 rounded-lg p-5 lg:sticky lg:top-24">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900">Danh mục</h2>
+                            {selectedCategory && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedCategory(null);
+                                        setPage(1);
+                                    }}
+                                    className="text-sm text-blue-600 hover:underline"
+                                >
+                                    Bỏ chọn
+                                </button>
+                            )}
+                        </div>
 
-            {/* SEARCH BAR */}
-            <div className="mb-8 flex items-center bg-white border-2 border-blue-600 rounded-lg px-3 py-2 shadow-md">
-                <BsSearch className="text-blue-600 mr-3 w-5 h-5" />
-                <input 
-                    type="text"
-                    value={localSearch}
-                    onChange={(e) => handleLocalSearchChange(e.target.value)}
-                    placeholder="Tìm kiếm sản phẩm..."
-                    className="flex-grow h-10 px-2 outline-none text-gray-700 text-lg"
-                />
-                {localSearch && (
-                    <button 
-                        onClick={() => handleLocalSearchChange('')}
-                        className="ml-2 text-gray-500 hover:text-red-600 font-bold text-xl"
-                    >
-                        ✕
-                    </button>
-                )}
-            </div>
+                        {categoriesLoading ? (
+                            <p className="text-gray-500">Đang tải danh mục...</p>
+                        ) : categoryGroups.length === 0 ? (
+                            <p className="text-gray-500">Chưa có danh mục.</p>
+                        ) : (
+                            <div className="space-y-5">
+                                {categoryGroups.map((group) => (
+                                    <div key={group.slug || group.id} className="border border-gray-100 rounded-lg overflow-hidden">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleGroup(group.slug)}
+                                            className="w-full bg-blue-50 px-4 py-3 flex items-center justify-between text-left"
+                                        >
+                                            <h3 className="font-bold text-blue-700">{group.name}</h3>
+                                            {openGroups[group.slug] === false ? (
+                                                <BsChevronRight className="text-blue-700 flex-shrink-0" />
+                                            ) : (
+                                                <BsChevronDown className="text-blue-700 flex-shrink-0" />
+                                            )}
+                                        </button>
 
-            {/* LOADING */}
-            {loading && (
-                <div className="text-center py-12">
-                    <h2 className="text-2xl font-bold">Đang tải sản phẩm...</h2>
-                </div>
-            )}
+                                        {openGroups[group.slug] === false ? null : group.items.length === 0 ? (
+                                            <p className="px-4 py-3 text-sm text-gray-500">Chưa có danh mục con.</p>
+                                        ) : (
+                                            <div className="divide-y divide-gray-100 overflow-y-auto" style={{ maxHeight: '360px' }}>
+                                                {group.items.map((category) => (
+                                                    <label
+                                                        key={category.slug || category.id}
+                                                        className="flex items-start gap-3 px-4 py-2 text-gray-700 cursor-pointer hover:bg-gray-50"
+                                                        style={{ paddingLeft: `${16 + category.level * 12}px` }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedCategory?.slug === category.slug}
+                                                            onChange={() => handleSelectCategory(category)}
+                                                            className="w-4 h-4 mt-1 text-blue-600 border-gray-300 rounded flex-shrink-0"
+                                                        />
+                                                        <span className="font-medium leading-6 flex-1">{category.name}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </aside>
 
-            {/* ERROR */}
-            {error && !loading && (
-                <div className="text-center py-12">
-                    <h2 className="text-2xl font-bold">Lỗi tải sản phẩm</h2>
-                    <button 
-                        onClick={() => window.location.reload()}
-                        className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-lg"
-                    >
-                        Tải lại trang
-                    </button>
-                </div>
-            )}
-
-            {/* PRODUCTS */}
-            {!loading && !error && (
-                <>
-                    {searchTerm && (
-                        <p className="text-gray-600 mb-4">
-                            Tìm thấy {productsToDisplay.length} sản phẩm
-                        </p>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 py-6">
-
-                        {/* 🔄 CHANGE — chỉ animate 12 item đầu để tránh lag */}
-                        {visibleProducts.map((product, index) => (
-                            index < 12 ? (
-                                <Bounce left key={product.id}>
-                                    <Product {...product} />
-                                </Bounce>
-                            ) : (
-                                <div key={product.id}>
-                                    <Product {...product} />
-                                </div>
-                            )
-                        ))}
-
+                <div className="lg:col-span-3">
+                    <div className="mb-6 flex items-center bg-white border-2 border-blue-600 rounded-lg px-3 py-2 shadow-md">
+                        <BsSearch className="text-blue-600 mr-3 w-5 h-5" />
+                        <input
+                            type="text"
+                            value={localSearch}
+                            onChange={(e) => handleLocalSearchChange(e.target.value)}
+                            placeholder="Tìm kiếm thuốc..."
+                            className="flex-grow h-10 px-2 outline-none text-gray-700 text-lg"
+                        />
+                        {localSearch && (
+                            <button
+                                type="button"
+                                onClick={handleClearSearch}
+                                className="ml-2 text-gray-500 hover:text-red-600 font-bold text-xl"
+                            >
+                                ×
+                            </button>
+                        )}
                     </div>
 
-                    {/* ⭐ NEW — nút load thêm */}
-                    {visibleCount < productsToDisplay.length && (
-                        <div className="text-center mt-10">
+                    <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                        <p className="text-gray-600">
+                            {selectedCategory
+                                ? `Đang xem ${selectedCategory.name}`
+                                : 'Tất cả sản phẩm'}
+                            {pagination.total ? ` · ${pagination.total} sản phẩm` : ''}
+                        </p>
+                        <p className="text-gray-500">
+                            Trang {currentPage}/{totalPages}
+                        </p>
+                    </div>
+
+                    {loading && (
+                        <div className="text-center py-12">
+                            <h2 className="text-2xl font-bold">Đang tải sản phẩm...</h2>
+                        </div>
+                    )}
+
+                    {error && !loading && (
+                        <div className="text-center py-12 bg-white border border-gray-100 rounded-lg">
+                            <h2 className="text-2xl font-bold text-gray-800">Lỗi tải sản phẩm</h2>
+                            <p className="mt-2 text-gray-600">{error}</p>
                             <button
-                                onClick={() => setVisibleCount(prev => prev + ITEMS_PER_BATCH)}
-                                className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700"
+                                type="button"
+                                onClick={() => setPage(1)}
+                                className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-lg"
                             >
-                                Xem thêm sản phẩm
+                                Tải lại
                             </button>
                         </div>
                     )}
-                </>
-            )}
+
+                    {!loading && !error && products.length === 0 && (
+                        <div className="text-center py-12 bg-white border border-gray-100 rounded-lg">
+                            <h2 className="text-2xl font-bold text-gray-800">Không tìm thấy sản phẩm</h2>
+                            <p className="mt-2 text-gray-600">
+                                Thử bỏ tìm kiếm hoặc chọn danh mục khác.
+                            </p>
+                        </div>
+                    )}
+
+                    {!loading && !error && products.length > 0 && (
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 py-4">
+                                {products.map((product) => (
+                                    <div key={product.id}>
+                                        <Product {...product} />
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex items-center justify-center gap-2 mt-8">
+                                <button
+                                    type="button"
+                                    disabled={currentPage <= 1}
+                                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                                    className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Trước
+                                </button>
+
+                                {pageNumbers.map((pageNumber) => (
+                                    <button
+                                        key={pageNumber}
+                                        type="button"
+                                        onClick={() => setPage(pageNumber)}
+                                        className={`w-10 h-10 rounded-lg border font-semibold ${
+                                            pageNumber === currentPage
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white text-gray-700 hover:border-blue-500'
+                                        }`}
+                                    >
+                                        {pageNumber}
+                                    </button>
+                                ))}
+
+                                <button
+                                    type="button"
+                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                                    className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Sau
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
         </section>
-    )
-}
+    );
+};
 
 export default ProductsScreen;

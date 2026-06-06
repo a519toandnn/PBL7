@@ -25,7 +25,7 @@ const AdminCustomersScreen = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
-      const payload = json.data || json;
+      const payload = json.data.data || json;
       setCustomers(Array.isArray(payload) ? payload : []);
     } catch (err) {
       console.error('Error loading customers:', err);

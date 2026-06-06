@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import swal from 'sweetalert';
 import useAuth from '../hooks/useAuth';
+import { apiFetch, getAuthHeaders, getListData } from '../utils/apiClient';
 
 const AdminStatsScreen = () => {
   const { user } = useAuth();
@@ -11,9 +12,6 @@ const AdminStatsScreen = () => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:3001';
-  const token = localStorage.getItem('token');
-
   useEffect(() => {
     if (!isAdmin) return;
     loadAll();
@@ -22,21 +20,16 @@ const AdminStatsScreen = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ordersRes, usersRes, messagesRes] = await Promise.all([
-        fetch(`${apiBase}/order`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${apiBase}/user`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${apiBase}/doctor/messages/all`, { headers: { Authorization: `Bearer ${token}` } }),
+      const headers = getAuthHeaders(null);
+      const [ordersPayload, usersPayload, messagesPayload] = await Promise.all([
+        apiFetch('/order/admin?page=1&limit=100', { headers }),
+        apiFetch('/user?page=1&limit=100', { headers }),
+        apiFetch('/doctor/messages/all', { headers }),
       ]);
 
-      const [ordersJson, usersJson, messagesJson] = await Promise.all([
-        ordersRes.json(),
-        usersRes.json(),
-        messagesRes.json(),
-      ]);
-
-      setOrders(Array.isArray(ordersJson.data || ordersJson) ? (ordersJson.data || ordersJson) : []);
-      setUsers(Array.isArray(usersJson.data || usersJson) ? (usersJson.data || usersJson) : []);
-      setMessages(Array.isArray(messagesJson.data || messagesJson) ? (messagesJson.data || messagesJson) : []);
+      setOrders(getListData(ordersPayload));
+      setUsers(getListData(usersPayload));
+      setMessages(getListData(messagesPayload));
     } catch (err) {
       swal('Error', 'Không tải được dữ liệu thống kê', 'error');
       setOrders([]);

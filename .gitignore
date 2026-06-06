@@ -1,1 +1,13 @@
 node_modules
+
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+.env.example
+
+./API_CONNECTION_AUDIT.md
+./PRODUCT_DETAIL_IMPLEMENTATION_DRAFT.md
+./PRODUCT_DETAIL_REDESIGN_PROPOSAL.md
+.env

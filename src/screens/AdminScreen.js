@@ -7,22 +7,111 @@ import AdminProductTable from '../components/Admin/AdminProductTable';
 import AdminProductForm from '../components/Admin/AdminProductForm';
 import { RiMessage2Line } from 'react-icons/ri';
 import { fetchMedicinesAsProducts } from '../utils/productsApi';
+import { apiFetch, getAuthHeaders } from '../utils/apiClient';
+
+const DEFAULT_MEASURE_UNIT_ID = 1;
+
+const emptyFormData = {
+  title: '',
+  slug: '',
+  product_type: 'DRUG',
+  category: '',
+  category_ids: '',
+  description: '',
+  image_url: '',
+  price: '',
+  measure_unit_id: DEFAULT_MEASURE_UNIT_ID,
+  manufacturer: '',
+  usage: '',
+  rating: 4,
+  reviews: 0
+};
+
+const slugify = (value) => {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+const parseNumberList = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(Number).filter(Number.isFinite);
+  }
+
+  return String(value || '')
+    .split(',')
+    .map((item) => Number(item.trim()))
+    .filter(Number.isFinite);
+};
+
+const parsePrice = (value) => {
+  const normalized = String(value || '').replace(/[^\d.-]/g, '');
+  const price = Number(normalized);
+  return Number.isFinite(price) ? price : 0;
+};
+
+const getDefaultPrice = (prices = []) => {
+  return prices.find((price) => price.is_sell_default) || prices[0] || null;
+};
+
+const detailToFormData = (detail, fallback = {}) => {
+  const defaultPrice = getDefaultPrice(detail.prices);
+
+  return {
+    ...emptyFormData,
+    title: detail.name || fallback.title || '',
+    slug: detail.slug || fallback.slug || '',
+    product_type: detail.product_type || fallback.product_type || 'DRUG',
+    category: detail.categories?.[0]?.name || fallback.category || '',
+    category_ids: Array.isArray(detail.categories)
+      ? detail.categories.map((category) => category.id).join(', ')
+      : '',
+    description: detail.description || fallback.description || '',
+    image_url: detail.image_url || '',
+    price: defaultPrice?.price ?? fallback.price ?? '',
+    measure_unit_id: defaultPrice?.measure_id || DEFAULT_MEASURE_UNIT_ID,
+    manufacturer: fallback.manufacturer || '',
+    usage: detail.medical_info?.usage || fallback.usage || '',
+    rating: fallback.rating || 4,
+    reviews: fallback.reviews || 0,
+  };
+};
+
+const toMedicinePayload = (formData) => {
+  const price = parsePrice(formData.price);
+  const measureUnitId = Number(formData.measure_unit_id || DEFAULT_MEASURE_UNIT_ID);
+
+  return {
+    name: formData.title.trim(),
+    slug: (formData.slug || slugify(formData.title)).trim(),
+    product_type: formData.product_type || 'DRUG',
+    description: formData.description || null,
+    image_url: formData.image_url || null,
+    is_active: true,
+    category_ids: parseNumberList(formData.category_ids),
+    prices: price > 0
+      ? [{
+          measure_unit_id: measureUnitId,
+          price,
+          is_sell_default: true,
+        }]
+      : [],
+    medical_info: {
+      usage: formData.usage || '',
+    },
+  };
+};
 
 const AdminScreen = () => {
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    category: '',
-    description: '',
-    price: '',
-    manufacturer: '',
-    usage: '',
-    rating: 4,
-    reviews: 0
-  });
+  const [formData, setFormData] = useState(emptyFormData);
 
   const { user } = useAuth();
 
@@ -52,52 +141,45 @@ const AdminScreen = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.category || !formData.price) {
-      swal('Validation Error', 'Please fill in all required fields', 'warning');
+    if (!formData.title || !formData.price || !formData.measure_unit_id) {
+      swal('Validation Error', 'Please fill in product name, price and measure unit ID', 'warning');
       return;
     }
 
-    if (editingId) {
-      // Update existing product
-      const updatedProducts = products.map(p =>
-        p.id === editingId
-          ? { ...p, ...formData }
-          : p
-      );
-      setProducts(updatedProducts);
-      swal('Success', 'Product updated successfully', 'success');
-      setEditingId(null);
-    } else {
-      // Add new product
-      const newProduct = {
-        id: Math.max(...products.map(p => p.id), 0) + 1,
-        ...formData,
-        image: '../assets/products/product' + ((products.length % 8) + 1) + '.jpg'
-      };
-      setProducts([...products, newProduct]);
-      swal('Success', 'Product added successfully', 'success');
-    }
+    try {
+      const payload = toMedicinePayload(formData);
+      await apiFetch(editingId ? `/medicines/${editingId}` : '/medicines', {
+        method: editingId ? 'PATCH' : 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
 
-    setFormData({
-      title: '',
-      category: '',
-      description: '',
-      price: '',
-      manufacturer: '',
-      usage: '',
-      rating: 4,
-      reviews: 0
-    });
-    setShowForm(false);
+      await fetchProducts();
+      swal('Success', editingId ? 'Product updated successfully' : 'Product added successfully', 'success');
+      setEditingId(null);
+      setFormData(emptyFormData);
+      setShowForm(false);
+    } catch (error) {
+      swal('Error', error.message || 'Save product failed', 'error');
+    }
   };
 
-  const handleEdit = (product) => {
-    setFormData(product);
+  const handleEdit = async (product) => {
+    setFormData({ ...emptyFormData, ...product });
     setEditingId(product.id);
     setShowForm(true);
+
+    if (!product.slug) return;
+
+    try {
+      const detail = await apiFetch(`/medicines/${product.slug}`);
+      setFormData(detailToFormData(detail, product));
+    } catch (error) {
+      swal('Warning', error.message || 'Failed to load product details', 'warning');
+    }
   };
 
   const handleDelete = (id) => {
@@ -109,8 +191,17 @@ const AdminScreen = () => {
       dangerMode: true,
     }).then((willDelete) => {
       if (willDelete) {
-        setProducts(products.filter(p => p.id !== id));
-        swal('Success', 'Product deleted successfully', 'success');
+        apiFetch(`/medicines/${id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders(null),
+        })
+          .then(() => {
+            setProducts(products.filter(p => p.id !== id));
+            swal('Success', 'Product deleted successfully', 'success');
+          })
+          .catch((error) => {
+            swal('Error', error.message || 'Delete product failed', 'error');
+          });
       }
     });
   };
@@ -118,16 +209,7 @@ const AdminScreen = () => {
   const handleCancel = () => {
     setShowForm(false);
     setEditingId(null);
-    setFormData({
-      title: '',
-      category: '',
-      description: '',
-      price: '',
-      manufacturer: '',
-      usage: '',
-      rating: 4,
-      reviews: 0
-    });
+    setFormData(emptyFormData);
   };
 
   // Filter products based on search term

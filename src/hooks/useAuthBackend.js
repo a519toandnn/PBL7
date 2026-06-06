@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useHistory } from "react-router-dom";
 import swal from 'sweetalert';
+import { clearStoredAuth, hasValidStoredToken } from '../utils/authToken';
 
 const useAuth = () => {
     const [user, setUser] = useState(null);
@@ -209,17 +210,45 @@ const useAuth = () => {
 
     // Logout
     const logOut = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        clearStoredAuth();
         setUser(null);
         history.push('/');
+    };
+
+    const forceLoginAgain = () => {
+        clearStoredAuth();
+        setUser(null);
+        history.push('/signin');
+    };
+
+    const updateUser = (updates) => {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const nextUser = { ...storedUser, ...user, ...updates };
+
+        localStorage.setItem('user', JSON.stringify(nextUser));
+        setUser(nextUser);
+        return nextUser;
     };
 
     // Check if user is logged in
     const checkUser = () => {
         const storedUser = localStorage.getItem('user');
-        if (storedUser) {
+        if (!storedUser) {
+            setUser(null);
+            return;
+        }
+
+        if (!hasValidStoredToken()) {
+            clearStoredAuth();
+            setUser(null);
+            return;
+        }
+
+        try {
             setUser(JSON.parse(storedUser));
+        } catch (error) {
+            clearStoredAuth();
+            setUser(null);
         }
     };
 
@@ -230,7 +259,9 @@ const useAuth = () => {
         signInUser,
         signInWithGoogle,
         logOut,
+        forceLoginAgain,
         checkUser,
+        updateUser,
     };
 };
 
