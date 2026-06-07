@@ -399,6 +399,74 @@ export class PaymentService {
       return { RspCode: '99', Message: 'Invalid request' };
     }
 
+    return this.confirmVnpayPayment(params);
+  }
+
+  async handleVnpayReturn(query: Record<string, string | string[]>) {
+    const params = this.flattenVnpayQuery(query);
+    const hashSecret = this.configService.get<string>('VNPAY_HASH_SECRET');
+
+    let confirmResult: { RspCode: string; Message: string };
+
+    if (!hashSecret) {
+      confirmResult = {
+        RspCode: '99',
+        Message: 'Missing VNPAY configuration',
+      };
+    } else if (!verifyVnpSecureHash(params, hashSecret)) {
+      confirmResult = { RspCode: '97', Message: 'Invalid Checksum' };
+    } else {
+      const txnRef = params.vnp_TxnRef;
+      const receivedAmount = Number(params.vnp_Amount) / 100;
+      confirmResult =
+        !txnRef || Number.isNaN(receivedAmount)
+          ? { RspCode: '99', Message: 'Invalid request' }
+          : await this.confirmVnpayPayment(params);
+    }
+
+    const payment = params.vnp_TxnRef
+      ? await this.findPaymentByProviderTxnId(params.vnp_TxnRef)
+      : null;
+    const responseCode = params.vnp_ResponseCode ?? confirmResult.RspCode;
+    const transactionStatus =
+      params.vnp_TransactionStatus ?? confirmResult.RspCode;
+    const isPaid = payment?.status === PaymentStatus.SUCCESS;
+
+    const response = {
+      success: isPaid,
+      order_id: payment?.order?.id ?? null,
+      order_status: payment?.order?.status ?? null,
+      payment: payment ? this.mapPaymentSummary(payment) : null,
+      vnpay: {
+        response_code: responseCode,
+        transaction_status: transactionStatus,
+        transaction_no: params.vnp_TransactionNo ?? null,
+        txn_ref: params.vnp_TxnRef ?? null,
+        bank_code: params.vnp_BankCode ?? null,
+        pay_date: params.vnp_PayDate ?? null,
+      },
+      message: confirmResult.Message,
+    };
+
+    return {
+      ...response,
+      redirect_url: this.buildVnpayFrontendReturnUrl(response),
+    };
+  }
+
+  private async findPaymentByProviderTxnId(
+    providerTxnId: string,
+  ): Promise<Payment | null> {
+    return this.paymentRepository.findOne({
+      where: { provider_txn_id: providerTxnId },
+      relations: ['order', 'payment_method'],
+    });
+  }
+
+  private async confirmVnpayPayment(params: Record<string, string>) {
+    const txnRef = params.vnp_TxnRef;
+    const receivedAmount = Number(params.vnp_Amount) / 100;
+
     return this.dataSource.transaction(async (manager) => {
       const payment = await manager
         .getRepository(Payment)
@@ -436,62 +504,6 @@ export class PaymentService {
       await manager.save(Payment, payment);
 
       return { RspCode: '00', Message: 'Confirm Success' };
-    });
-  }
-
-  async handleVnpayReturn(query: Record<string, string | string[]>) {
-    const params = this.flattenVnpayQuery(query);
-    const hashSecret = this.configService.get<string>('VNPAY_HASH_SECRET');
-
-    let isValidChecksum = false;
-    let message = 'Invalid Checksum';
-
-    if (!hashSecret) {
-      message = 'Missing VNPAY configuration';
-    } else {
-      isValidChecksum = verifyVnpSecureHash(params, hashSecret);
-      message = isValidChecksum
-        ? 'Return checksum valid'
-        : 'Invalid Checksum';
-    }
-
-    const payment = params.vnp_TxnRef
-      ? await this.findPaymentByProviderTxnId(params.vnp_TxnRef)
-      : null;
-    const responseCode = params.vnp_ResponseCode ?? (isValidChecksum ? '00' : '97');
-    const transactionStatus =
-      params.vnp_TransactionStatus ?? (isValidChecksum ? '00' : '97');
-    const isVnpaySuccess =
-      isValidChecksum && responseCode === '00' && transactionStatus === '00';
-
-    const response = {
-      success: isVnpaySuccess,
-      order_id: payment?.order?.id ?? null,
-      order_status: payment?.order?.status ?? null,
-      payment: payment ? this.mapPaymentSummary(payment) : null,
-      vnpay: {
-        response_code: responseCode,
-        transaction_status: transactionStatus,
-        transaction_no: params.vnp_TransactionNo ?? null,
-        txn_ref: params.vnp_TxnRef ?? null,
-        bank_code: params.vnp_BankCode ?? null,
-        pay_date: params.vnp_PayDate ?? null,
-      },
-      message,
-    };
-
-    return {
-      ...response,
-      redirect_url: this.buildVnpayFrontendReturnUrl(response),
-    };
-  }
-
-  private async findPaymentByProviderTxnId(
-    providerTxnId: string,
-  ): Promise<Payment | null> {
-    return this.paymentRepository.findOne({
-      where: { provider_txn_id: providerTxnId },
-      relations: ['order', 'payment_method'],
     });
   }
 
