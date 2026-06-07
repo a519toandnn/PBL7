@@ -24,8 +24,12 @@ function normalizeVnpayParams(params: VnpayParams): Record<string, string> {
 
 function toVnpaySignData(params: VnpayParams): string {
   return Object.entries(normalizeVnpayParams(params))
-    .map(([key, value]) => `${key}=${value}`)
+    .map(([key, value]) => `${encodeVnpayValue(key)}=${encodeVnpayValue(value)}`)
     .join('&');
+}
+
+function encodeVnpayValue(value: string): string {
+  return encodeURIComponent(value).replace(/%20/g, '+');
 }
 
 export function createVnpSecureHash(
@@ -68,13 +72,14 @@ export function buildVnpayPaymentUrl(options: {
 
 export function formatVnpayDate(date: Date): string {
   const pad = (value: number) => value.toString().padStart(2, '0');
+  const vietnamTime = new Date(date.getTime() + 7 * 60 * 60 * 1000);
 
   return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
-    pad(date.getHours()),
-    pad(date.getMinutes()),
-    pad(date.getSeconds()),
+    vietnamTime.getUTCFullYear(),
+    pad(vietnamTime.getUTCMonth() + 1),
+    pad(vietnamTime.getUTCDate()),
+    pad(vietnamTime.getUTCHours()),
+    pad(vietnamTime.getUTCMinutes()),
+    pad(vietnamTime.getUTCSeconds()),
   ].join('');
 }

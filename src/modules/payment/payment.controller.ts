@@ -66,6 +66,25 @@ export class PaymentController {
   }
 
   /**
+   * GET /payment/vnpay/return - VNPAY browser return URL
+   * VNPAY redirects the user's browser here after payment.
+   * BE verifies the secure hash, confirms payment, then redirects to FE.
+   */
+  @Get('vnpay/return')
+  async handleVnpayReturn(
+    @Query() query: Record<string, string | string[]>,
+    @Res() res: Response,
+  ) {
+    const result = await this.paymentService.handleVnpayReturn(query);
+
+    if (result.redirect_url) {
+      return res.redirect(result.redirect_url);
+    }
+
+    return res.status(result.success ? 200 : 400).json(result);
+  }
+
+  /**
    * POST /payment/order/:orderId/initiate - Create COD payment or VNPAY URL
    */
   @Post('order/:orderId/initiate')

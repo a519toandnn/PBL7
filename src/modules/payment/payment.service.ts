@@ -297,7 +297,7 @@ export class PaymentService {
     initiatePaymentDto: InitiatePaymentDto,
     ipAddress: string,
   ) {
-    const vnpayConfig = this.getVnpayConfig(initiatePaymentDto.return_url);
+    const vnpayConfig = this.getVnpayConfig();
     const now = new Date();
     const expireDate = new Date(now.getTime() + 15 * 60 * 1000);
 
@@ -436,6 +436,62 @@ export class PaymentService {
       await manager.save(Payment, payment);
 
       return { RspCode: '00', Message: 'Confirm Success' };
+    });
+  }
+
+  async handleVnpayReturn(query: Record<string, string | string[]>) {
+    const params = this.flattenVnpayQuery(query);
+    const hashSecret = this.configService.get<string>('VNPAY_HASH_SECRET');
+
+    let isValidChecksum = false;
+    let message = 'Invalid Checksum';
+
+    if (!hashSecret) {
+      message = 'Missing VNPAY configuration';
+    } else {
+      isValidChecksum = verifyVnpSecureHash(params, hashSecret);
+      message = isValidChecksum
+        ? 'Return checksum valid'
+        : 'Invalid Checksum';
+    }
+
+    const payment = params.vnp_TxnRef
+      ? await this.findPaymentByProviderTxnId(params.vnp_TxnRef)
+      : null;
+    const responseCode = params.vnp_ResponseCode ?? (isValidChecksum ? '00' : '97');
+    const transactionStatus =
+      params.vnp_TransactionStatus ?? (isValidChecksum ? '00' : '97');
+    const isVnpaySuccess =
+      isValidChecksum && responseCode === '00' && transactionStatus === '00';
+
+    const response = {
+      success: isVnpaySuccess,
+      order_id: payment?.order?.id ?? null,
+      order_status: payment?.order?.status ?? null,
+      payment: payment ? this.mapPaymentSummary(payment) : null,
+      vnpay: {
+        response_code: responseCode,
+        transaction_status: transactionStatus,
+        transaction_no: params.vnp_TransactionNo ?? null,
+        txn_ref: params.vnp_TxnRef ?? null,
+        bank_code: params.vnp_BankCode ?? null,
+        pay_date: params.vnp_PayDate ?? null,
+      },
+      message,
+    };
+
+    return {
+      ...response,
+      redirect_url: this.buildVnpayFrontendReturnUrl(response),
+    };
+  }
+
+  private async findPaymentByProviderTxnId(
+    providerTxnId: string,
+  ): Promise<Payment | null> {
+    return this.paymentRepository.findOne({
+      where: { provider_txn_id: providerTxnId },
+      relations: ['order', 'payment_method'],
     });
   }
 
@@ -657,7 +713,7 @@ export class PaymentService {
     return order;
   }
 
-  private getVnpayConfig(returnUrl?: string) {
+  private getVnpayConfig() {
     const tmnCode = this.configService.get<string>('VNPAY_TMN_CODE');
     const hashSecret = this.configService.get<string>('VNPAY_HASH_SECRET');
 
@@ -672,9 +728,8 @@ export class PaymentService {
         this.configService.get<string>('VNPAY_PAYMENT_URL') ||
         'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
       returnUrl:
-        returnUrl ||
         this.configService.get<string>('VNPAY_RETURN_URL') ||
-        'http://localhost:3000/payment/vnpay-return',
+        'http://localhost:3001/payment/vnpay/return',
     };
   }
 
@@ -687,6 +742,70 @@ export class PaymentService {
       this.configService.get<string>('VNPAY_USE_GATEWAY')?.toLowerCase() ===
       'true'
     );
+  }
+
+  private buildVnpayFrontendReturnUrl(response: {
+    success: boolean;
+    order_id: number | null;
+    order_status: OrderStatus | null;
+    payment: ReturnType<PaymentService['mapPaymentSummary']> | null;
+    vnpay: {
+      response_code: string;
+      transaction_status: string;
+      transaction_no: string | null;
+      txn_ref: string | null;
+      bank_code: string | null;
+      pay_date: string | null;
+    };
+    message: string;
+  }): string | null {
+    const frontendReturnUrl =
+      this.configService.get<string>('VNPAY_FRONTEND_RETURN_URL') ||
+      this.configService.get<string>('CLIENT_VNPAY_RETURN_URL');
+
+    if (!frontendReturnUrl) {
+      return null;
+    }
+
+    let url: URL;
+    try {
+      url = new URL(frontendReturnUrl);
+    } catch {
+      return null;
+    }
+    url.searchParams.set('success', String(response.success));
+    url.searchParams.set('message', response.message);
+    url.searchParams.set('vnp_ResponseCode', response.vnpay.response_code);
+    url.searchParams.set(
+      'vnp_TransactionStatus',
+      response.vnpay.transaction_status,
+    );
+
+    if (response.order_id) {
+      url.searchParams.set('order_id', String(response.order_id));
+    }
+
+    if (response.order_status) {
+      url.searchParams.set('order_status', response.order_status);
+    }
+
+    if (response.payment) {
+      url.searchParams.set('payment_id', String(response.payment.id));
+      url.searchParams.set('payment_status', response.payment.status);
+    }
+
+    if (response.vnpay.txn_ref) {
+      url.searchParams.set('vnp_TxnRef', response.vnpay.txn_ref);
+    }
+
+    if (response.vnpay.transaction_no) {
+      url.searchParams.set(
+        'vnp_TransactionNo',
+        response.vnpay.transaction_no,
+      );
+    }
+
+    return url.toString();
   }
 
   private flattenVnpayQuery(
