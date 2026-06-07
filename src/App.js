@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Route, Switch } from 'react-router-dom';
+import { BrowserRouter, Redirect, Route, Switch } from 'react-router-dom';
 import Footer from './components/Footer/Footer';
 import Navbar from './components/Navbar/Navbar';
 import AuthProvider from './contexts/AuthProvider';
@@ -28,6 +28,36 @@ import AdminCustomersScreen from './screens/AdminCustomersScreen';
 import AdminStatsScreen from './screens/AdminStatsScreen';
 import ChatButton from './components/ChatButton/ChatButton';
 
+const paymentReturnQueryKeys = [
+  'order_id',
+  'payment_status',
+  'order_status',
+  'payment_id',
+  'vnp_ResponseCode',
+  'vnp_TxnRef',
+  'vnp_TransactionStatus',
+];
+
+export const shouldRedirectRootPaymentReturn = (url) => {
+  const parsedUrl = new URL(url, 'https://pbl7-medicine.local');
+
+  if (parsedUrl.pathname !== '/') {
+    return false;
+  }
+
+  return paymentReturnQueryKeys.some((key) => parsedUrl.searchParams.has(key));
+};
+
+const HomeRoute = ({ location }) => {
+  const currentUrl = `${location.pathname}${location.search}`;
+
+  if (shouldRedirectRootPaymentReturn(currentUrl)) {
+    return <Redirect to={`/payment/vnpay-return${location.search}`} />;
+  }
+
+  return <HomeScreen />;
+};
+
 const App = () => {
   return (
     <BrowserRouter>
@@ -36,7 +66,7 @@ const App = () => {
           <Navbar />
           <div className="pt-20">
             <Switch>
-            <Route exact path="/"><HomeScreen /></Route>
+            <Route exact path="/" component={HomeRoute} />
             <Route exact path="/contact"><ContactScreen /></Route>
             <Route exact path="/consultation"><ConsultationScreen /></Route>
             <AdminRoute exact path="/admin"><AdminScreen /></AdminRoute>
