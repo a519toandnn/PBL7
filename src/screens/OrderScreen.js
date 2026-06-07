@@ -7,6 +7,7 @@ import OrderCard from '../components/Order/OrderCard';
 import useOrder from '../hooks/useOrder';
 import useAuth from '../hooks/useAuth';
 import { formatCurrency, needsPriceConsultation } from '../utils/productsApi';
+import { markPendingVnpayReturn } from '../utils/vnpayReturnSession';
 
 const formatOrderShippingAddress = (address) => {
   if (!address) return '(Không có)';
@@ -198,6 +199,7 @@ const OrderScreen = () => {
       const paymentUrl = payload?.next_action?.payment_url;
 
       if (payload?.next_action?.type === 'REDIRECT' && paymentUrl) {
+        markPendingVnpayReturn(orderId);
         window.location.href = paymentUrl;
         return;
       }

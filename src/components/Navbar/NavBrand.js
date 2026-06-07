@@ -4,7 +4,7 @@ const NavBrand = () => {
     return (
         <div className="flex items-center space-x-4">
             <img className="w-12 select-none" src="../../assets/favicon.png" alt="logo" />
-            <h1 className="text-3xl font-semibold text-blue-600 brand-font select-none">Long Chau Pharmacy</h1>
+            <h1 className="text-3xl font-semibold text-blue-600 brand-font select-none">PBL7 Pharmacy</h1>
         </div>
     )
 }

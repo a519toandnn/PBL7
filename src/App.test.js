@@ -1,4 +1,4 @@
-import { shouldRedirectRootPaymentReturn } from './App';
+import { getRootPaymentReturnRedirect, shouldRedirectRootPaymentReturn } from './App';
 
 describe('shouldRedirectRootPaymentReturn', () => {
   it('detects VNPAY return query on the root path', () => {
@@ -11,5 +11,21 @@ describe('shouldRedirectRootPaymentReturn', () => {
     expect(shouldRedirectRootPaymentReturn('/')).toBe(false);
     expect(shouldRedirectRootPaymentReturn('/?utm_source=test')).toBe(false);
     expect(shouldRedirectRootPaymentReturn('/products?order_id=12')).toBe(false);
+  });
+});
+
+describe('getRootPaymentReturnRedirect', () => {
+  it('redirects root VNPAY return query to the payment result screen', () => {
+    expect(getRootPaymentReturnRedirect('/?order_id=12&success=true')).toBe(
+      '/payment/vnpay-return?order_id=12&success=true'
+    );
+  });
+
+  it('redirects root without query when a pending VNPAY order exists in the session', () => {
+    expect(getRootPaymentReturnRedirect('/', '12')).toBe('/payment/vnpay-return?order_id=12');
+  });
+
+  it('does not redirect normal root visits without a pending VNPAY order', () => {
+    expect(getRootPaymentReturnRedirect('/')).toBe('');
   });
 });

@@ -27,6 +27,7 @@ import AdminMessagesScreen from './screens/AdminMessagesScreen';
 import AdminCustomersScreen from './screens/AdminCustomersScreen';
 import AdminStatsScreen from './screens/AdminStatsScreen';
 import ChatButton from './components/ChatButton/ChatButton';
+import { getPendingVnpayReturnOrderId } from './utils/vnpayReturnSession';
 
 const paymentReturnQueryKeys = [
   'order_id',
@@ -48,11 +49,30 @@ export const shouldRedirectRootPaymentReturn = (url) => {
   return paymentReturnQueryKeys.some((key) => parsedUrl.searchParams.has(key));
 };
 
+export const getRootPaymentReturnRedirect = (url, pendingOrderId = '') => {
+  const parsedUrl = new URL(url, 'https://pbl7-medicine.local');
+
+  if (parsedUrl.pathname !== '/') {
+    return '';
+  }
+
+  if (shouldRedirectRootPaymentReturn(url)) {
+    return `/payment/vnpay-return${parsedUrl.search}`;
+  }
+
+  if (pendingOrderId) {
+    return `/payment/vnpay-return?order_id=${encodeURIComponent(pendingOrderId)}`;
+  }
+
+  return '';
+};
+
 const HomeRoute = ({ location }) => {
   const currentUrl = `${location.pathname}${location.search}`;
+  const redirectTo = getRootPaymentReturnRedirect(currentUrl, getPendingVnpayReturnOrderId());
 
-  if (shouldRedirectRootPaymentReturn(currentUrl)) {
-    return <Redirect to={`/payment/vnpay-return${location.search}`} />;
+  if (redirectTo) {
+    return <Redirect to={redirectTo} />;
   }
 
   return <HomeScreen />;

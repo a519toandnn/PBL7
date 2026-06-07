@@ -6,6 +6,7 @@ import useOrder from '../hooks/useOrder';
 import { apiFetch, getAuthHeaders } from '../utils/apiClient';
 import { clearStoredCheckoutByOrderId } from '../utils/checkoutStorage';
 import { formatCurrency } from '../utils/productsApi';
+import { clearPendingVnpayReturn } from '../utils/vnpayReturnSession';
 
 const MAX_STATUS_POLLS = 8;
 const POLL_INTERVAL_MS = 2500;
@@ -157,6 +158,12 @@ const VnpayReturnScreen = () => {
   const [pollCount, setPollCount] = useState(0);
   const [loading, setLoading] = useState(Boolean(orderId));
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (orderId) {
+      clearPendingVnpayReturn();
+    }
+  }, [orderId]);
 
   const fetchPaymentStatus = useCallback(async () => {
     if (!orderId) {

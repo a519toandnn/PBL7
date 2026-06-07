@@ -14,6 +14,7 @@ import {
     loadStoredCheckout,
     saveStoredCheckout,
 } from '../utils/checkoutStorage';
+import { markPendingVnpayReturn } from '../utils/vnpayReturnSession';
 
 const parsePriceVal = (p) => {
     if (typeof p === 'number') return p;
@@ -217,6 +218,9 @@ const CheckoutScreen = () => {
             const { payment, nextAction, message } = normalizePayment(paymentResponse);
 
             if (nextAction?.type === 'REDIRECT' && nextAction?.payment_url) {
+                if (paymentMethod === 'VNPAY') {
+                    markPendingVnpayReturn(orderId);
+                }
                 window.location.href = nextAction.payment_url;
                 return;
             }
