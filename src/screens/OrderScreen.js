@@ -22,6 +22,37 @@ const formatOrderNote = (note) => note || '(Không có)';
 
 const getOrderId = (order) => order?.order_id ?? order?.id;
 
+const getLatestPayment = (order) => {
+  const payments = Array.isArray(order?.payments) ? order.payments : [];
+  return [...payments].sort((left, right) => {
+    const rightId = Number(right.payment_id ?? right.id ?? 0);
+    const leftId = Number(left.payment_id ?? left.id ?? 0);
+    return rightId - leftId;
+  })[0] || null;
+};
+
+const getPaymentMethodCode = (payment) => {
+  return (
+    payment?.payment_method_code ||
+    payment?.method?.code ||
+    payment?.payment_method?.code ||
+    payment?.payment_method_name ||
+    payment?.method?.name ||
+    payment?.payment_method?.name ||
+    ''
+  );
+};
+
+const canContinueVnpayPayment = (order) => {
+  if (order?.status !== 'PENDING') return false;
+
+  const latestPayment = getLatestPayment(order);
+  const methodCode = String(getPaymentMethodCode(latestPayment)).toUpperCase();
+  const paymentStatus = latestPayment?.status;
+
+  return methodCode.includes('VNPAY') && ['PENDING', 'FAILED'].includes(paymentStatus);
+};
+
 const OrderScreen = () => {
   const { orders, selectedCheckoutIds, setSelectedCheckoutIds, clearOrders } = useOrder();
   const { user } = useAuth();
@@ -31,6 +62,7 @@ const OrderScreen = () => {
 
   const [historyOrders, setHistoryOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [payingOrderId, setPayingOrderId] = useState(null);
 
   const cartTotal = useMemo(() => {
     return orders
@@ -138,6 +170,49 @@ const OrderScreen = () => {
       });
     } catch (err) {
       swal('Error', 'Không tải được chi tiết đơn hàng', 'error');
+    }
+  };
+
+  const continueVnpayPayment = async (orderId) => {
+    if (!orderId) return;
+
+    setPayingOrderId(orderId);
+
+    try {
+      const res = await fetch(`${apiBase}/payment/order/${orderId}/initiate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ payment_method_code: 'VNPAY' }),
+      });
+
+      const json = await res.json().catch(() => null);
+      const payload = json?.data || json;
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Không thể tiếp tục thanh toán VNPAY');
+      }
+
+      const paymentUrl = payload?.next_action?.payment_url;
+
+      if (payload?.next_action?.type === 'REDIRECT' && paymentUrl) {
+        window.location.href = paymentUrl;
+        return;
+      }
+
+      if (payload?.payment?.status === 'SUCCESS') {
+        await loadHistory();
+        swal('Thanh toán thành công', 'Đơn hàng đã được cập nhật.', 'success');
+        return;
+      }
+
+      swal('Chưa thể mở VNPAY', payload?.message || 'Vui lòng thử lại.', 'warning');
+    } catch (error) {
+      swal('Lỗi thanh toán', error.message || 'Không thể tiếp tục thanh toán.', 'error');
+    } finally {
+      setPayingOrderId(null);
     }
   };
 
@@ -292,6 +367,16 @@ const OrderScreen = () => {
                         >
                           Chi tiết
                         </button>
+                        {canContinueVnpayPayment(o) && (
+                          <button
+                            type="button"
+                            onClick={() => continueVnpayPayment(orderId)}
+                            disabled={payingOrderId === orderId}
+                            className="ml-0 mt-2 sm:ml-3 sm:mt-0 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                          >
+                            {payingOrderId === orderId ? 'Đang mở VNPAY...' : 'Tiếp tục thanh toán'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                     );
