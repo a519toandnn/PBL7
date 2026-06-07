@@ -7,39 +7,13 @@ import useAuth from '../hooks/useAuth';
 import { fetchUserAddresses } from '../utils/addressApi';
 import { CONSULTATION_PRICE_TEXT, formatCurrency, needsPriceConsultation } from '../utils/productsApi';
 import { apiFetch, getAuthHeaders } from '../utils/apiClient';
-
-const CHECKOUT_ORDER_PREFIX = 'pending_checkout_order';
-const ACTIVE_CHECKOUT_PREFIX = 'active_checkout_order';
-
-const getCheckoutOrderStorageKey = (userId, cartItemIds) => {
-    const stableIds = [...cartItemIds].sort((a, b) => Number(a) - Number(b)).join(',');
-    return `${CHECKOUT_ORDER_PREFIX}:${userId}:${stableIds}`;
-};
-
-const getActiveCheckoutStorageKey = (userId) => `${ACTIVE_CHECKOUT_PREFIX}:${userId}`;
-
-const loadStoredCheckout = (storageKey) => {
-    try {
-        const raw = localStorage.getItem(storageKey);
-        return raw ? JSON.parse(raw) : null;
-    } catch (error) {
-        return null;
-    }
-};
-
-const saveStoredCheckout = (storageKey, checkout) => {
-    localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-            ...checkout,
-            updatedAt: new Date().toISOString(),
-        })
-    );
-};
-
-const clearStoredCheckout = (storageKey) => {
-    localStorage.removeItem(storageKey);
-};
+import {
+    clearStoredCheckout,
+    getActiveCheckoutStorageKey,
+    getCheckoutOrderStorageKey,
+    loadStoredCheckout,
+    saveStoredCheckout,
+} from '../utils/checkoutStorage';
 
 const parsePriceVal = (p) => {
     if (typeof p === 'number') return p;
@@ -72,7 +46,7 @@ const paymentMethods = [
     {
         code: 'VNPAY',
         title: 'Thanh toán bằng VNPAY',
-        description: 'Demo hiện tại sẽ xác nhận thanh toán thành công ngay.',
+        description: 'Chuyển sang cổng VNPAY sandbox và xác nhận kết quả qua BE.',
         icon: FaCreditCard,
     },
 ];

@@ -12,6 +12,7 @@ import ErrorScreen from './screens/ErrorScreen';
 import HomeScreen from './screens/HomeScreen';
 import OrderScreen from './screens/OrderScreen';
 import CheckoutScreen from './screens/CheckoutScreen';
+import VnpayReturnScreen from './screens/VnpayReturnScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
 import ProductDetailScreen from './screens/ProductDetailScreen';
 import ProductsScreen from './screens/ProductsScreen';
@@ -51,6 +52,7 @@ const App = () => {
             <Route exact path="/products/:title"><ProductDetailScreen /></Route>
             <PrivateRoute exact path="/orders"><OrderScreen /></PrivateRoute>
             <PrivateRoute exact path="/checkout"><CheckoutScreen /></PrivateRoute>
+            <PrivateRoute exact path="/payment/vnpay-return"><VnpayReturnScreen /></PrivateRoute>
             <PrivateRoute exact path="/profile"><UserProfileScreen /></PrivateRoute>
             <Route path="*"><ErrorScreen /></Route>
             </Switch>
