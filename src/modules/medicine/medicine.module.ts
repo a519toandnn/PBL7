@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MedicineService } from './medicine.service';
 import { MedicineController } from './medicine.controller';
+import { MeasureUnitController } from './measure-unit.controller';
+import { MeasureUnitService } from './measure-unit.service';
 import { Medicine } from './entities/medicine.entity';
 import { Category } from '../category/entities/category.entity';
 import { ProductCategory } from '../category/entities/product-category.entity';
@@ -22,9 +24,10 @@ import { SearchQueryEmbeddingCacheService } from './services/search-query-embedd
       MeasureUnit,
     ]),
   ],
-  controllers: [MedicineController],
+  controllers: [MedicineController, MeasureUnitController],
   providers: [
     MedicineService,
+    MeasureUnitService,
     GeminiEmbeddingProvider,
     MedicineSearchIndexService,
     MedicineSemanticSearchService,
