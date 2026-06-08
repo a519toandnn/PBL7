@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Redirect, Route, Switch } from 'react-router-dom';
 import Footer from './components/Footer/Footer';
 import Navbar from './components/Navbar/Navbar';
+import AdminLayout from './components/Admin/AdminLayout';
 import AuthProvider from './contexts/AuthProvider';
 import OrderProvider from './contexts/OrderProvider';
 import PrivateRoute from './routes/PrivateRoute';
@@ -89,12 +90,12 @@ const App = () => {
             <Route exact path="/" component={HomeRoute} />
             <Route exact path="/contact"><ContactScreen /></Route>
             <Route exact path="/consultation"><ConsultationScreen /></Route>
-            <AdminRoute exact path="/admin"><AdminScreen /></AdminRoute>
-            <AdminRoute exact path="/admin/orders"><OrderManagementScreen /></AdminRoute>
-            <AdminRoute exact path="/admin/consultations"><AdminConsultationsScreen /></AdminRoute>
-            <AdminRoute exact path="/admin/messages"><AdminMessagesScreen /></AdminRoute>
-            <AdminRoute exact path="/admin/customers"><AdminCustomersScreen /></AdminRoute>
-            <AdminRoute exact path="/admin/stats"><AdminStatsScreen /></AdminRoute>
+            <AdminRoute exact path="/admin"><AdminLayout><AdminScreen /></AdminLayout></AdminRoute>
+            <AdminRoute exact path="/admin/orders"><AdminLayout><OrderManagementScreen /></AdminLayout></AdminRoute>
+            <AdminRoute exact path="/admin/consultations"><AdminLayout><AdminConsultationsScreen /></AdminLayout></AdminRoute>
+            <AdminRoute exact path="/admin/messages"><AdminLayout><AdminMessagesScreen /></AdminLayout></AdminRoute>
+            <AdminRoute exact path="/admin/customers"><AdminLayout><AdminCustomersScreen /></AdminLayout></AdminRoute>
+            <AdminRoute exact path="/admin/stats"><AdminLayout><AdminStatsScreen /></AdminLayout></AdminRoute>
             <PublicRoute path="/signup"><SignUpScreen /></PublicRoute>
             <PublicRoute path="/signin"><SignInScreen /></PublicRoute>
             <Route exact path="/services/:title"><ServicesDetailScreen /></Route>

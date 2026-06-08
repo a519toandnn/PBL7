@@ -34,6 +34,20 @@ const buildCategoryGroups = (categories) => {
     }));
 };
 
+export const getProductPaginationPages = (currentPage, totalPages) => {
+    const safeTotalPages = Math.max(1, Number(totalPages || 1));
+    const safeCurrentPage = Math.min(
+        Math.max(1, Number(currentPage || 1)),
+        safeTotalPages
+    );
+
+    return Array.from({ length: safeTotalPages }, (_, index) => index + 1).filter((pageNumber) => (
+        pageNumber === 1 ||
+        pageNumber === safeTotalPages ||
+        Math.abs(pageNumber - safeCurrentPage) <= 2
+    ));
+};
+
 const ProductsScreen = () => {
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -176,16 +190,16 @@ const ProductsScreen = () => {
 
     const totalPages = Math.max(1, Number(pagination.totalPages || 1));
     const currentPage = Math.min(Number(pagination.page || page), totalPages);
-    const pageNumbers = useMemo(() => {
-        const start = Math.max(1, currentPage - 2);
-        const end = Math.min(totalPages, start + 4);
-        const adjustedStart = Math.max(1, end - 4);
+    const pageNumbers = useMemo(
+        () => getProductPaginationPages(currentPage, totalPages),
+        [currentPage, totalPages]
+    );
 
-        return Array.from(
-            { length: end - adjustedStart + 1 },
-            (_, index) => adjustedStart + index
-        );
-    }, [currentPage, totalPages]);
+    const handlePageChange = (nextPage) => {
+        const safeNextPage = Math.min(Math.max(1, Number(nextPage || 1)), totalPages);
+        setPage(safeNextPage);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const heading = selectedCategory ? `Danh mục: ${selectedCategory.name}` : 'Product';
 
@@ -337,31 +351,41 @@ const ProductsScreen = () => {
                                 <button
                                     type="button"
                                     disabled={currentPage <= 1}
-                                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                                    onClick={() => handlePageChange(currentPage - 1)}
                                     className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Trước
                                 </button>
 
-                                {pageNumbers.map((pageNumber) => (
-                                    <button
-                                        key={pageNumber}
-                                        type="button"
-                                        onClick={() => setPage(pageNumber)}
-                                        className={`w-10 h-10 rounded-lg border font-semibold ${
-                                            pageNumber === currentPage
-                                                ? 'bg-blue-600 text-white border-blue-600'
-                                                : 'bg-white text-gray-700 hover:border-blue-500'
-                                        }`}
-                                    >
-                                        {pageNumber}
-                                    </button>
-                                ))}
+                                {pageNumbers.map((pageNumber, index) => {
+                                    const previousPage = pageNumbers[index - 1];
+                                    const shouldShowGap = previousPage && pageNumber - previousPage > 1;
+
+                                    return (
+                                        <React.Fragment key={pageNumber}>
+                                            {shouldShowGap && (
+                                                <span className="px-1 text-gray-400">...</span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePageChange(pageNumber)}
+                                                style={{ minWidth: 40 }}
+                                                className={`h-10 rounded-lg border px-3 font-semibold ${
+                                                    pageNumber === currentPage
+                                                        ? 'bg-blue-600 text-white border-blue-600'
+                                                        : 'bg-white text-gray-700 hover:border-blue-500'
+                                                }`}
+                                            >
+                                                {pageNumber}
+                                            </button>
+                                        </React.Fragment>
+                                    );
+                                })}
 
                                 <button
                                     type="button"
                                     disabled={currentPage >= totalPages}
-                                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                                    onClick={() => handlePageChange(currentPage + 1)}
                                     className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Sau
