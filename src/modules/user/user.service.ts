@@ -2,11 +2,12 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -90,6 +91,15 @@ export class UserService {
 
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
+    const updatesAdminAccess =
+      Object.prototype.hasOwnProperty.call(updateUserDto, 'role') ||
+      Object.prototype.hasOwnProperty.call(updateUserDto, 'status');
+
+    if (user.role === UserRole.ADMIN && updatesAdminAccess) {
+      throw new ForbiddenException(
+        'Cannot change role or status of an admin account',
+      );
+    }
 
     if (updateUserDto.email && updateUserDto.email !== user.email) {
       const existingEmailUser = await this.userRepository.findOne({
