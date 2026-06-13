@@ -70,7 +70,6 @@ const RevenueChart = ({ series, range, onRangeChange }) => {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Biểu đồ doanh thu</h2>
-          <p className="mt-1 text-sm text-gray-500">Chỉ tính các đơn hàng đã PAID trong khoảng đang chọn.</p>
         </div>
         <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
           {revenueRangeOptions.map((option) => (
@@ -199,9 +198,6 @@ const TopProductsChart = ({ products }) => {
     <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-5">
         <h2 className="text-xl font-bold text-gray-900">Sản phẩm có doanh thu cao</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Group theo sản phẩm, giữ riêng số lượng theo từng đơn vị tính.
-        </p>
       </div>
 
       {products.length === 0 ? (
@@ -321,9 +317,6 @@ const AdminStatsScreen = () => {
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">Admin Statistics</h1>
-            <p className="mt-2 text-gray-500">
-              Theo dõi doanh thu, trạng thái đơn và sản phẩm nổi bật trong một màn hình.
-            </p>
           </div>
           <button
             type="button"
@@ -392,9 +385,6 @@ const AdminStatsScreen = () => {
                 <p className="mt-1 text-sm text-emerald-700">
                   Chưa trả lời: {stats.unrepliedMessages}
                 </p>
-              </div>
-              <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
-                Ưu tiên kiểm tra đơn PENDING trước, sau đó xử lý các tin nhắn chưa phản hồi.
               </div>
             </div>
           </div>

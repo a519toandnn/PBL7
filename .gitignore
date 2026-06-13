@@ -7,9 +7,6 @@ node_modules
 .env.local
 .env.example
 
-./API_CONNECTION_AUDIT.md
-./PRODUCT_DETAIL_IMPLEMENTATION_DRAFT.md
-./PRODUCT_DETAIL_REDESIGN_PROPOSAL.md
 .env
 
-*.md
+test-results

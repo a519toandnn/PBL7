@@ -47,6 +47,15 @@ const AdminCustomersScreen = () => {
   }, [customers, query]);
 
   const updateCustomer = async (customerId, patch) => {
+    const targetCustomer = customers.find((c) => c.id === customerId);
+    const isProtectedAdmin = targetCustomer?.role === 'ADMIN';
+    const touchesProtectedFields = Object.prototype.hasOwnProperty.call(patch, 'role') || Object.prototype.hasOwnProperty.call(patch, 'status');
+
+    if (isProtectedAdmin && touchesProtectedFields) {
+      swal('Error', 'Cannot change role or status of an admin account', 'error');
+      return;
+    }
+
     try {
       const res = await fetch(`${apiBase}/user/${customerId}`, {
         method: 'PATCH',
@@ -115,34 +124,42 @@ const AdminCustomersScreen = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 font-semibold text-gray-900">{c.id}</td>
-                    <td className="px-6 py-4 text-gray-700">{c.full_name}</td>
-                    <td className="px-6 py-4 text-gray-600">{c.email}</td>
-                    <td className="px-6 py-4">
-                      <select
-                        value={c.role}
-                        onChange={(e) => updateCustomer(c.id, { role: e.target.value })}
-                        className="px-3 py-2 rounded-lg bg-gray-50 border"
-                      >
-                        <option value="CUSTOMER">CUSTOMER</option>
-                        <option value="ADMIN">ADMIN</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4">
-                      <select
-                        value={c.status}
-                        onChange={(e) => updateCustomer(c.id, { status: e.target.value })}
-                        className="px-3 py-2 rounded-lg bg-gray-50 border"
-                      >
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="LOCKED">LOCKED</option>
-                        <option value="DELETED">DELETED</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((c) => {
+                  const isProtectedAdmin = c.role === 'ADMIN';
+
+                  return (
+                    <tr key={c.id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4 font-semibold text-gray-900">{c.id}</td>
+                      <td className="px-6 py-4 text-gray-700">{c.full_name}</td>
+                      <td className="px-6 py-4 text-gray-600">{c.email}</td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={c.role}
+                          onChange={(e) => updateCustomer(c.id, { role: e.target.value })}
+                          disabled={isProtectedAdmin}
+                          title={isProtectedAdmin ? 'Admin accounts cannot be changed by other admins' : undefined}
+                          className="px-3 py-2 rounded-lg bg-gray-50 border disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <option value="CUSTOMER">CUSTOMER</option>
+                          <option value="ADMIN">ADMIN</option>
+                        </select>
+                      </td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={c.status}
+                          onChange={(e) => updateCustomer(c.id, { status: e.target.value })}
+                          disabled={isProtectedAdmin}
+                          title={isProtectedAdmin ? 'Admin accounts cannot be disabled by other admins' : undefined}
+                          className="px-3 py-2 rounded-lg bg-gray-50 border disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <option value="ACTIVE">ACTIVE</option>
+                          <option value="LOCKED">LOCKED</option>
+                          <option value="DELETED">DELETED</option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
